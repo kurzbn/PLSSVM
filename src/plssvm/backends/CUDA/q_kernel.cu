@@ -21,7 +21,7 @@ __global__ void device_kernel_q_linear(real_type *q, const real_type *data_d, co
     }
     q[index] = temp;
 }
-template __global__ void device_kernel_q_linear(float *, const float *, const float *, const kernel_index_type, const kernel_index_type);
+// template __global__ void device_kernel_q_linear(float *, const float *, const float *, const kernel_index_type, const kernel_index_type);
 template __global__ void device_kernel_q_linear(double *, const double *, const double *, const kernel_index_type, const kernel_index_type);
 
 template <typename real_type>
@@ -33,7 +33,7 @@ __global__ void device_kernel_q_poly(real_type *q, const real_type *data_d, cons
     }
     q[index] = pow(gamma * temp + coef0, degree);
 }
-template __global__ void device_kernel_q_poly(float *, const float *, const float *, const kernel_index_type, const kernel_index_type, const int, const float, const float);
+// template __global__ void device_kernel_q_poly(float *, const float *, const float *, const kernel_index_type, const kernel_index_type, const int, const float, const float);
 template __global__ void device_kernel_q_poly(double *, const double *, const double *, const kernel_index_type, const kernel_index_type, const int, const double, const double);
 
 template <typename real_type>
@@ -45,7 +45,7 @@ __global__ void device_kernel_q_radial(real_type *q, const real_type *data_d, co
     }
     q[index] = exp(-gamma * temp);
 }
-template __global__ void device_kernel_q_radial(float *, const float *, const float *, const kernel_index_type, const kernel_index_type, const float);
+// template __global__ void device_kernel_q_radial(float *, const float *, const float *, const kernel_index_type, const kernel_index_type, const float);
 template __global__ void device_kernel_q_radial(double *, const double *, const double *, const kernel_index_type, const kernel_index_type, const double);
 
 }  // namespace plssvm::cuda

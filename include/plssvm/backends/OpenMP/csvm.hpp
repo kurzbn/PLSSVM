@@ -17,9 +17,9 @@
 
 namespace plssvm {
 
-// forward declare parameter class
+/* forward declare parameter class
 template <typename T>
-class parameter;
+class parameter; */
 
 namespace openmp {
 
@@ -27,12 +27,11 @@ namespace openmp {
  * @brief A C-SVM implementation using OpenMP as backend.
  * @tparam T the type of the data
  */
-template <typename T>
-class csvm : public ::plssvm::csvm<T> {
+class csvm : public ::plssvm::csvm {
   protected:
     // protected for test mock class
     /// The template base type of the OpenMP C-SVM class.
-    using base_type = ::plssvm::csvm<T>;
+    using base_type = ::plssvm::csvm;
     using base_type::alpha_ptr_;
     using base_type::bias_;
     using base_type::coef0_;
@@ -61,7 +60,7 @@ class csvm : public ::plssvm::csvm<T> {
      * @throws plssvm::openmp::backend_exception if the target platform isn't plssvm::target_platform::automatic or plssvm::target_platform::cpu
      * @throws plssvm::openmp::backend_exception if the plssvm::target_platform::cpu target isn't available
      */
-    explicit csvm(const parameter<T> &params);
+    explicit csvm(const parameter &params);
 
     /**
      * @copydoc plssvm::csvm::predict(const std::vector<std::vector<real_type>>&)
@@ -99,8 +98,8 @@ class csvm : public ::plssvm::csvm<T> {
     void run_device_kernel(const std::vector<real_type> &q, std::vector<real_type> &ret, const std::vector<real_type> &d, const std::vector<std::vector<real_type>> &data, real_type add);
 };
 
-extern template class csvm<float>;
-extern template class csvm<double>;
+// extern template class csvm<float>;
+// extern template class csvm<double>;
 
 }  // namespace openmp
 }  // namespace plssvm

@@ -49,38 +49,38 @@ namespace plssvm {
  * @throws plssvm::unsupported_backend_exception if the requested backend isn't available
  * @return [`std::unique_ptr`](https://en.cppreference.com/w/cpp/memory/unique_ptr) to the constructed C-SVM (`[[nodiscard]]`)
  */
-template <typename T>
-[[nodiscard]] std::unique_ptr<csvm<T>> make_csvm(const parameter<T> &params) {
+
+[[nodiscard]] std::unique_ptr<csvm> make_csvm(const parameter &params) {
     switch (params.backend) {
         case backend_type::automatic: {
-            parameter<T> new_params{ params };
+           parameter new_params{ params };
             new_params.backend = determine_default_backend();
-            return make_csvm(new_params);
+            return make_csvm(new_params); 
         }
         case backend_type::openmp:
 #if defined(PLSSVM_HAS_OPENMP_BACKEND)
-            return std::make_unique<openmp::csvm<T>>(params);
+            return std::make_unique<openmp::csvm>(params);
 #else
             throw unsupported_backend_exception{ "No OpenMP backend available!" };
 #endif
 
         case backend_type::cuda:
 #if defined(PLSSVM_HAS_CUDA_BACKEND)
-            return std::make_unique<cuda::csvm<T>>(params);
+            return std::make_unique<cuda::csvm>(params);
 #else
             throw unsupported_backend_exception{ "No CUDA backend available!" };
 #endif
 
         case backend_type::hip:
 #if defined(PLSSVM_HAS_HIP_BACKEND)
-            return std::make_unique<hip::csvm<T>>(params);
+            return std::make_unique<hip::csvm>(params);
 #else
             throw unsupported_backend_exception{ "No HIP backend available!" };
 #endif
 
         case backend_type::opencl:
 #if defined(PLSSVM_HAS_OPENCL_BACKEND)
-            return std::make_unique<opencl::csvm<T>>(params);
+            return std::make_unique<opencl::csvm>(params);
 #else
             throw unsupported_backend_exception{ "No OpenCL backend available!" };
 #endif
@@ -89,16 +89,16 @@ template <typename T>
 #if defined(PLSSVM_HAS_SYCL_BACKEND)
             switch (params.sycl_implementation_type) {
                 case sycl::implementation_type::automatic:
-                    return std::make_unique<PLSSVM_SYCL_BACKEND_PREFERRED_IMPLEMENTATION::csvm<T>>(params);
+                    return std::make_unique<PLSSVM_SYCL_BACKEND_PREFERRED_IMPLEMENTATION::csvm>(params);
                 case sycl::implementation_type::dpcpp:
     #if defined(PLSSVM_SYCL_BACKEND_HAS_DPCPP)
-                    return std::make_unique<dpcpp::csvm<T>>(params);
+                    return std::make_unique<dpcpp::csvm>(params);
     #else
                     throw unsupported_backend_exception{ "No SYCL backend using DPC++ available!" };
     #endif
                 case sycl::implementation_type::hipsycl:
     #if defined(PLSSVM_SYCL_BACKEND_HAS_HIPSYCL)
-                    return std::make_unique<hipsycl::csvm<T>>(params);
+                    return std::make_unique<hipsycl::csvm>(params);
     #else
                     throw unsupported_backend_exception{ "No SYCL backend using hipSYCL available!" };
     #endif

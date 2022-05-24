@@ -18,9 +18,9 @@
 
 namespace plssvm {
 
-// forward declare parameter class
+/* forward declare parameter class
 template <typename T>
-class parameter;
+class parameter; */
 
 namespace detail {
 
@@ -35,12 +35,11 @@ namespace hip {
  * @brief A C-SVM implementation using HIP as backend.
  * @tparam T the type of the data
  */
-template <typename T>
-class csvm : public ::plssvm::detail::gpu_csvm<T, ::plssvm::hip::detail::device_ptr<T>, int> {
+class csvm : public ::plssvm::detail::gpu_csvm, int> {
   protected:
     // protected for the test mock class
     /// The template base type of the HIP C-SVM class.
-    using base_type = ::plssvm::detail::gpu_csvm<T, ::plssvm::hip::detail::device_ptr<T>, int>;
+    /* using base_type = ::plssvm::detail::gpu_csvm<T, ::plssvm::hip::detail::device_ptr<T>, int>;
 
     using base_type::coef0_;
     using base_type::cost_;
@@ -60,7 +59,7 @@ class csvm : public ::plssvm::detail::gpu_csvm<T, ::plssvm::hip::detail::device_
     using base_type::num_rows_;
 
     using base_type::boundary_size_;
-    using base_type::dept_;
+    using base_type::dept_; */
 
   public:
     using typename base_type::real_type;
@@ -75,7 +74,7 @@ class csvm : public ::plssvm::detail::gpu_csvm<T, ::plssvm::hip::detail::device_
      * @throws plssvm::hip::backend_exception if the plssvm::target_platform::gpu_amd target isn't available
      * @throws plssvm::hip::backend_exception if no HIP devices could be found
      */
-    explicit csvm(const parameter<T> &params);
+    explicit csvm(const parameter &params);
 
     /**
      * @brief Wait for all operations on all HIP devices to finish.
@@ -107,8 +106,8 @@ class csvm : public ::plssvm::detail::gpu_csvm<T, ::plssvm::hip::detail::device_
     void run_predict_kernel(const ::plssvm::detail::execution_range &range, device_ptr_type &out_d, const device_ptr_type &alpha_d, const device_ptr_type &point_d, std::size_t num_predict_points) final;
 };
 
-extern template class csvm<float>;
-extern template class csvm<double>;
+// extern template class csvm<float>;
+// extern template class csvm<double>;
 
 }  // namespace hip
 }  // namespace plssvm

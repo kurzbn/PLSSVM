@@ -23,21 +23,18 @@
 namespace plssvm {
 
 // forward declare class
-template <typename T>
 class parameter;
 
 /**
  * @brief Base class for all C-SVM backends.
  * @tparam T the type of the data
  */
-template <typename T>
 class csvm {
-    // only float and doubles are allowed
-    static_assert(std::is_same_v<T, float> || std::is_same_v<T, double>, "The template type can only be 'float' or 'double'!");
+
 
   public:
     /// The type of the data. Must be either `float` or `double`.
-    using real_type = T;
+    using real_type = double;
 
     //*************************************************************************************************************************************//
     //                                                      special member functions                                                       //
@@ -51,7 +48,7 @@ class csvm {
      * @throws plssvm::exception if no features are provided for the data points
      * @throws plssvm::exception if weights are given, but the number of weights doesn't match the number of data points
      */
-    explicit csvm(const parameter<T> &params);
+    explicit csvm(const parameter &params);
 
     /**
      * @brief Virtual destructor to enable safe inheritance.
@@ -277,7 +274,6 @@ class csvm {
     std::vector<real_type> w_{};
 };
 
-extern template class csvm<float>;
-extern template class csvm<double>;
+// extern template class csvm<double>;
 
 }  // namespace plssvm

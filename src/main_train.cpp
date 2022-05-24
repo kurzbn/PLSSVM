@@ -18,17 +18,14 @@
 #include <iostream>   // std::cerr, std::clog, std::endl
 
 // perform calculations in single precision if requested
-#ifdef PLSSVM_EXECUTABLES_USE_SINGLE_PRECISION
-using real_type = float;
-#else
 using real_type = double;
-#endif
 
 int main(int argc, char *argv[]) {
     try {
         // parse SVM parameter from command line
-        plssvm::parameter_train<real_type> params{ argc, argv };
+        plssvm::parameter_train params{ argc, argv };
 
+        /*
         // warn if kernel invocation type nd_range or hierarchical are explicitly set but SYCL isn't the current backend
         if (params.backend != plssvm::backend_type::sycl && params.sycl_kernel_invocation_type != plssvm::sycl::kernel_invocation_type::automatic) {
             std::clog << fmt::format(
@@ -42,7 +39,7 @@ int main(int argc, char *argv[]) {
                 "WARNING: explicitly set a SYCL implementation type but the current backend isn't SYCL; ignoring --sycl_implementation_type={}",
                 params.sycl_implementation_type)
                       << std::endl;
-        }
+        }*/
 
         // output used parameter
         if (params.print_info) {

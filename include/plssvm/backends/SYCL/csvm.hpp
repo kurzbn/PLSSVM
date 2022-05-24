@@ -22,9 +22,9 @@ namespace plssvm {
 
 using namespace sycl_generic;
 
-// forward declare parameter class
+/* forward declare parameter class
 template <typename T>
-class parameter;
+class parameter; */
 
 namespace detail {
 
@@ -41,12 +41,11 @@ namespace @PLSSVM_SYCL_BACKEND_NAMESPACE_NAME@ {
  *          If hipSYCL is available, this class also exists in the `plssvm::hipsycl` namespace.
  * @tparam T the type of the data
  */
-template <typename T>
-    class csvm : public ::plssvm::detail::gpu_csvm<T, detail::device_ptr<T>, std::unique_ptr<detail::sycl::queue>> {
+    class csvm : public ::plssvm::detail::gpu_csvm {
   protected:
     // protected for the test MOCK class
     /// The template base type of the SYCL C-SVM class.
-    using base_type = ::plssvm::detail::gpu_csvm<T, detail::device_ptr<T>, std::unique_ptr<detail::sycl::queue>>;
+    /* using base_type = ::plssvm::detail::gpu_csvm<T, detail::device_ptr<T>, std::unique_ptr<detail::sycl::queue>>;
 
     using base_type::coef0_;
     using base_type::cost_;
@@ -64,7 +63,7 @@ template <typename T>
     using base_type::data_last_d_;
     using base_type::devices_;
     using base_type::num_cols_;
-    using base_type::num_rows_;
+    using base_type::num_rows_; */
 
   public:
     using typename base_type::real_type;
@@ -78,7 +77,7 @@ template <typename T>
      * @throws plssvm::sycl::backend_exception if the requested plssvm::target_platform isn't available
      * @throws plssvm::sycl::backend_exception if no possible OpenCL devices could be found
      */
-    explicit csvm(const parameter<T> &params);
+    explicit csvm(const parameter &params);
 
     /**
      * @brief Wait for all operations in all [`sycl::queue`](https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:interface.queue.class) to finish.
@@ -114,8 +113,8 @@ template <typename T>
     kernel_invocation_type invocation_type_;
 };
 
-extern template class csvm<float>;
-extern template class csvm<double>;
+// extern template class csvm<float>;
+// extern template class csvm<double>;
 
 }  // namespace @PLSSVM_SYCL_BACKEND_NAMESPACE_NAME@
 }  // namespace plssvm

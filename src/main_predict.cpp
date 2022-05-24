@@ -22,16 +22,12 @@
 #include <vector>     // std::vector
 
 // perform calculations in single precision if requested
-#ifdef PLSSVM_EXECUTABLES_USE_SINGLE_PRECISION
-using real_type = float;
-#else
 using real_type = double;
-#endif
 
 int main(int argc, char *argv[]) {
     try {
         // parse SVM parameter from command line
-        plssvm::parameter_predict<real_type> params{ argc, argv };
+        plssvm::parameter_predict params{ argc, argv };
 
         // warn if a SYCL implementation type is explicitly set but SYCL isn't the current backend
         if (params.backend != plssvm::backend_type::sycl && params.sycl_implementation_type != plssvm::sycl::implementation_type::automatic) {

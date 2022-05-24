@@ -21,33 +21,8 @@ namespace plssvm {
  * @brief Class for encapsulating all necessary parameters for predicting possibly provided through command line arguments.
  * @tparam T the type of the data
  */
-template <typename T>
-class parameter_predict : public parameter<T> {
+class parameter_predict : public parameter {
   public:
-    /// The template base type of the parameter_predict class.
-    using base_type = parameter<T>;
-
-    using base_type::backend;
-    using base_type::coef0;
-    using base_type::cost;
-    using base_type::degree;
-    using base_type::epsilon;
-    using base_type::gamma;
-    using base_type::kernel;
-    using base_type::print_info;
-    using base_type::sycl_implementation_type;
-    using base_type::target;
-
-    using base_type::input_filename;
-    using base_type::model_filename;
-    using base_type::predict_filename;
-
-    using base_type::alpha_ptr;
-    using base_type::data_ptr;
-    using base_type::test_data_ptr;
-    using base_type::value_ptr;
-
-    using base_type::rho;
     /**
      * @brief Default construct all parameters for prediction.
      */
@@ -69,7 +44,6 @@ class parameter_predict : public parameter<T> {
     parameter_predict(int argc, char **argv);
 };
 
-extern template class parameter_predict<float>;
-extern template class parameter_predict<double>;
+// extern template class parameter_predict<double>;
 
 }  // namespace plssvm

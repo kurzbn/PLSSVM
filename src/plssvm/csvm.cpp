@@ -37,8 +37,7 @@
 
 namespace plssvm {
 
-template <typename T>
-csvm<T>::csvm(const parameter<T> &params) :
+csvm::csvm(const parameter &params) :
     target_{ params.target }, kernel_{ params.kernel }, degree_{ params.degree }, gamma_{ params.gamma }, coef0_{ params.coef0 }, cost_{ params.cost }, epsilon_{ params.epsilon }, print_info_{ params.print_info }, data_ptr_{ params.data_ptr }, value_ptr_{ params.value_ptr }, alpha_ptr_{ params.alpha_ptr }, bias_{ -params.rho } {
     if (data_ptr_ == nullptr) {
         throw exception{ "No data points provided!" };
@@ -56,8 +55,7 @@ csvm<T>::csvm(const parameter<T> &params) :
     num_features_ = (*data_ptr_)[0].size();
 }
 
-template <typename T>
-void csvm<T>::write_model(const std::string &model_name) {
+void csvm::write_model(const std::string &model_name) {
     auto start_time = std::chrono::steady_clock::now();
 
     PLSSVM_ASSERT(data_ptr_ != nullptr, "No data is provided!");  // exception in constructor
@@ -203,8 +201,7 @@ void csvm<T>::write_model(const std::string &model_name) {
     }
 }
 
-template <typename T>
-void csvm<T>::learn() {
+void csvm::learn() {
     using namespace plssvm::operators;
 
     PLSSVM_ASSERT(data_ptr_ != nullptr, "No data is provided!");  // exception in constructor
@@ -266,8 +263,7 @@ void csvm<T>::learn() {
     }
 }
 
-template <typename T>
-auto csvm<T>::accuracy() -> real_type {
+auto csvm::accuracy() -> real_type {
     if (value_ptr_ == nullptr) {
         throw exception{ "No labels given! Maybe the data is only usable for prediction?" };
     }
@@ -276,8 +272,7 @@ auto csvm<T>::accuracy() -> real_type {
     return accuracy(*data_ptr_, *value_ptr_);
 }
 
-template <typename T>
-auto csvm<T>::accuracy(const std::vector<real_type> &point, const real_type correct_label) -> real_type {
+auto csvm::accuracy(const std::vector<real_type> &point, const real_type correct_label) -> real_type {
     PLSSVM_ASSERT(data_ptr_ != nullptr, "No data is provided!");  // exception in constructor
     PLSSVM_ASSERT(!data_ptr_->empty(), "Data set is empty!");     // exception in constructor
     if (point.size() != data_ptr_->front().size()) {
@@ -287,8 +282,7 @@ auto csvm<T>::accuracy(const std::vector<real_type> &point, const real_type corr
     return accuracy(std::vector<std::vector<real_type>>(1, point), std::vector<real_type>(1, correct_label));
 }
 
-template <typename T>
-auto csvm<T>::accuracy(const std::vector<std::vector<real_type>> &points, const std::vector<real_type> &correct_labels) -> real_type {
+auto csvm::accuracy(const std::vector<std::vector<real_type>> &points, const std::vector<real_type> &correct_labels) -> real_type {
     if (points.size() != correct_labels.size()) {
         throw exception{ fmt::format("Number of data points ({}) must match number of correct labels ({})!", points.size(), correct_labels.size()) };
     }
@@ -317,8 +311,7 @@ auto csvm<T>::accuracy(const std::vector<std::vector<real_type>> &points, const 
     return static_cast<real_type>(correct) / static_cast<real_type>(points.size());
 }
 
-template <typename T>
-auto csvm<T>::predict(const std::vector<real_type> &point) -> real_type {
+auto csvm::predict(const std::vector<real_type> &point) -> real_type {
     PLSSVM_ASSERT(data_ptr_ != nullptr, "No data is provided!");  // exception in constructor
     PLSSVM_ASSERT(!data_ptr_->empty(), "Data set is empty!");     // exception in constructor
     if (point.size() != data_ptr_->front().size()) {
@@ -328,8 +321,7 @@ auto csvm<T>::predict(const std::vector<real_type> &point) -> real_type {
     return predict(std::vector<std::vector<real_type>>(1, point))[0];
 }
 
-template <typename T>
-auto csvm<T>::predict_label(const std::vector<real_type> &point) -> real_type {
+auto csvm::predict_label(const std::vector<real_type> &point) -> real_type {
     PLSSVM_ASSERT(data_ptr_ != nullptr, "No data is provided!");  // exception in constructor
     PLSSVM_ASSERT(!data_ptr_->empty(), "Data set is empty!");     // exception in constructor
     if (point.size() != data_ptr_->front().size()) {
@@ -339,8 +331,7 @@ auto csvm<T>::predict_label(const std::vector<real_type> &point) -> real_type {
     return operators::sign(predict(point));
 }
 
-template <typename T>
-auto csvm<T>::predict_label(const std::vector<std::vector<real_type>> &points) -> std::vector<real_type> {
+auto csvm::predict_label(const std::vector<std::vector<real_type>> &points) -> std::vector<real_type> {
     PLSSVM_ASSERT(data_ptr_ != nullptr, "No data is provided!");  // exception in constructor
     PLSSVM_ASSERT(!data_ptr_->empty(), "Data set is empty!");     // exception in constructor
 
@@ -365,8 +356,7 @@ auto csvm<T>::predict_label(const std::vector<std::vector<real_type>> &points) -
     return classes;
 }
 
-template <typename T>
-auto csvm<T>::kernel_function(const std::vector<real_type> &xi, const std::vector<real_type> &xj) -> real_type {
+auto csvm::kernel_function(const std::vector<real_type> &xi, const std::vector<real_type> &xj) -> real_type {
     PLSSVM_ASSERT(xi.size() == xj.size(), "Sizes mismatch!: {} != {}", xi.size(), xj.size());
 
     switch (kernel_) {
@@ -380,8 +370,7 @@ auto csvm<T>::kernel_function(const std::vector<real_type> &xi, const std::vecto
     throw unsupported_kernel_type_exception{ fmt::format("Unknown kernel type (value: {})!", detail::to_underlying(kernel_)) };
 }
 
-template <typename T>
-auto csvm<T>::transform_data(const std::vector<std::vector<real_type>> &matrix, const std::size_t boundary, const std::size_t num_points) -> std::vector<real_type> {
+auto csvm::transform_data(const std::vector<std::vector<real_type>> &matrix, const std::size_t boundary, const std::size_t num_points) -> std::vector<real_type> {
     PLSSVM_ASSERT(!matrix.empty(), "Matrix is empty!");
     PLSSVM_ASSERT(num_points <= matrix.size(), "Num points to transform can not exceed matrix size!");
 
@@ -407,7 +396,6 @@ auto csvm<T>::transform_data(const std::vector<std::vector<real_type>> &matrix, 
 }
 
 // explicitly instantiate template class
-template class csvm<float>;
-template class csvm<double>;
+//template class csvm<double>;
 
 }  // namespace plssvm

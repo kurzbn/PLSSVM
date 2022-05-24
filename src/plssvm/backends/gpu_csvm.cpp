@@ -44,12 +44,11 @@
 
 namespace plssvm::detail {
 
-template <typename T, typename device_ptr_t, typename queue_t>
-gpu_csvm<T, device_ptr_t, queue_t>::gpu_csvm(const parameter<T> &params) :
-    base_type{ params } {}
 
-template <typename T, typename device_ptr_t, typename queue_t>
-auto gpu_csvm<T, device_ptr_t, queue_t>::predict(const std::vector<std::vector<real_type>> &points) -> std::vector<real_type> {
+gpu_csvm::gpu_csvm(const parameter &params) :
+    csvm::csvm{ params } {}
+
+auto gpu_csvm::predict(const std::vector<std::vector<real_type>> &points) -> std::vector<real_type> {
     using namespace plssvm::operators;
 
     PLSSVM_ASSERT(data_ptr_ != nullptr, "No data is provided!");  // exception in constructor
@@ -95,7 +94,7 @@ auto gpu_csvm<T, device_ptr_t, queue_t>::predict(const std::vector<std::vector<r
         out_d.memset(0);
 
         // transform prediction data
-        const std::vector<real_type> transformed_data = base_type::transform_data(points, boundary_size_, points.size());
+        const std::vector<real_type> transformed_data = csvm::transform_data(points, boundary_size_, points.size());
         device_ptr_type point_d{ points[0].size() * (points.size() + boundary_size_), devices_[0] };
         point_d.memset(0);
         point_d.memcpy_to_device(transformed_data, 0, transformed_data.size());
@@ -126,8 +125,8 @@ auto gpu_csvm<T, device_ptr_t, queue_t>::predict(const std::vector<std::vector<r
     return out;
 }
 
-template <typename T, typename device_ptr_t, typename queue_t>
-void gpu_csvm<T, device_ptr_t, queue_t>::setup_data_on_device() {
+
+void gpu_csvm::setup_data_on_device() {
     // set values of member variables
     dept_ = num_data_points_ - 1;
     boundary_size_ = static_cast<std::size_t>(THREAD_BLOCK_SIZE * INTERNAL_BLOCK_SIZE);
@@ -139,7 +138,7 @@ void gpu_csvm<T, device_ptr_t, queue_t>::setup_data_on_device() {
     }
 
     // transform 2D to 1D data
-    const std::vector<real_type> transformed_data = base_type::transform_data(*data_ptr_, boundary_size_, dept_);
+    const std::vector<real_type> transformed_data = csvm::transform_data(*data_ptr_, boundary_size_, dept_);
 
     #pragma omp parallel for
     for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
@@ -156,8 +155,7 @@ void gpu_csvm<T, device_ptr_t, queue_t>::setup_data_on_device() {
     }
 }
 
-template <typename T, typename device_ptr_t, typename queue_t>
-auto gpu_csvm<T, device_ptr_t, queue_t>::generate_q() -> std::vector<real_type> {
+auto gpu_csvm::generate_q() -> std::vector<real_type> {
     PLSSVM_ASSERT(dept_ != 0, "dept_ not initialized! Maybe a call to setup_data_on_device() is missing?");
     PLSSVM_ASSERT(boundary_size_ != 0, "boundary_size_ not initialized! Maybe a call to setup_data_on_device() is missing?");
     PLSSVM_ASSERT(num_rows_ != 0, "num_rows_ not initialized! Maybe a call to setup_data_on_device() is missing?");
@@ -182,8 +180,7 @@ auto gpu_csvm<T, device_ptr_t, queue_t>::generate_q() -> std::vector<real_type> 
     return q;
 }
 
-template <typename T, typename device_ptr_t, typename queue_t>
-auto gpu_csvm<T, device_ptr_t, queue_t>::solver_CG(const std::vector<real_type> &b, const std::size_t imax, const real_type eps, const std::vector<real_type> &q) -> std::vector<real_type> {
+auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax, const real_type eps, const std::vector<real_type> &q) -> std::vector<real_type> {
     using namespace plssvm::operators;
 
     PLSSVM_ASSERT(dept_ != 0, "dept_ not initialized! Maybe a call to setup_data_on_device() is missing?");
@@ -219,7 +216,7 @@ auto gpu_csvm<T, device_ptr_t, queue_t>::solver_CG(const std::vector<real_type> 
     device_reduction(r_d, r);
 
     // delta = r.T * r
-    real_type delta = transposed{ r } * r;
+    real_type delta = transposed<double>{ r } * r;
     const real_type delta0 = delta;
     std::vector<real_type> Ad(dept_);
 
@@ -323,8 +320,7 @@ auto gpu_csvm<T, device_ptr_t, queue_t>::solver_CG(const std::vector<real_type> 
     return std::vector<real_type>(x.begin(), x.begin() + dept_);
 }
 
-template <typename T, typename device_ptr_t, typename queue_t>
-void gpu_csvm<T, device_ptr_t, queue_t>::update_w() {
+void gpu_csvm::update_w() {
     w_.resize(num_features_);
     #pragma omp parallel for
     for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
@@ -349,8 +345,7 @@ void gpu_csvm<T, device_ptr_t, queue_t>::update_w() {
     }
 }
 
-template <typename T, typename device_ptr_t, typename queue_t>
-void gpu_csvm<T, device_ptr_t, queue_t>::run_device_kernel(const std::size_t device, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, const real_type add) {
+void gpu_csvm::run_device_kernel(const std::size_t device, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, const real_type add) {
     PLSSVM_ASSERT(dept_ != 0, "dept_ not initialized! Maybe a call to setup_data_on_device() is missing?");
     PLSSVM_ASSERT(boundary_size_ != 0, "boundary_size_ not initialized! Maybe a call to setup_data_on_device() is missing?");
     PLSSVM_ASSERT(num_rows_ != 0, "num_rows_ not initialized! Maybe a call to setup_data_on_device() is missing?");
@@ -362,8 +357,8 @@ void gpu_csvm<T, device_ptr_t, queue_t>::run_device_kernel(const std::size_t dev
     run_svm_kernel(device, range, q_d, r_d, x_d, add, feature_ranges_[device + 1] - feature_ranges_[device]);
 }
 
-template <typename T, typename device_ptr_t, typename queue_t>
-void gpu_csvm<T, device_ptr_t, queue_t>::device_reduction(std::vector<device_ptr_type> &buffer_d, std::vector<real_type> &buffer) {
+
+void gpu_csvm::device_reduction(std::vector<device_ptr_type> &buffer_d, std::vector<real_type> &buffer) {
     using namespace plssvm::operators;
 
     device_synchronize(devices_[0]);
@@ -385,28 +380,29 @@ void gpu_csvm<T, device_ptr_t, queue_t>::device_reduction(std::vector<device_ptr
     }
 }
 
+/*
 // explicitly instantiate template class depending on available backends
 #if defined(PLSSVM_HAS_CUDA_BACKEND)
-template class gpu_csvm<float, ::plssvm::cuda::detail::device_ptr<float>, int>;
+// template class gpu_csvm<float, ::plssvm::cuda::detail::device_ptr<float>, int>;
 template class gpu_csvm<double, ::plssvm::cuda::detail::device_ptr<double>, int>;
 #endif
 #if defined(PLSSVM_HAS_HIP_BACKEND)
-template class gpu_csvm<float, ::plssvm::hip::detail::device_ptr<float>, int>;
+// template class gpu_csvm<float, ::plssvm::hip::detail::device_ptr<float>, int>;
 template class gpu_csvm<double, ::plssvm::hip::detail::device_ptr<double>, int>;
 #endif
 #if defined(PLSSVM_HAS_OPENCL_BACKEND)
-template class gpu_csvm<float, ::plssvm::opencl::detail::device_ptr<float>, ::plssvm::opencl::detail::command_queue>;
+// template class gpu_csvm<float, ::plssvm::opencl::detail::device_ptr<float>, ::plssvm::opencl::detail::command_queue>;
 template class gpu_csvm<double, ::plssvm::opencl::detail::device_ptr<double>, ::plssvm::opencl::detail::command_queue>;
 #endif
 #if defined(PLSSVM_HAS_SYCL_BACKEND)
 #if defined(PLSSVM_SYCL_BACKEND_HAS_DPCPP)
-template class gpu_csvm<float, ::plssvm::dpcpp::detail::device_ptr<float>, std::unique_ptr<::plssvm::dpcpp::detail::sycl::queue>>;
+// template class gpu_csvm<float, ::plssvm::dpcpp::detail::device_ptr<float>, std::unique_ptr<::plssvm::dpcpp::detail::sycl::queue>>;
 template class gpu_csvm<double, ::plssvm::dpcpp::detail::device_ptr<double>, std::unique_ptr<::plssvm::dpcpp::detail::sycl::queue>>;
 #endif
 #if defined(PLSSVM_SYCL_BACKEND_HAS_HIPSYCL)
-template class gpu_csvm<float, ::plssvm::hipsycl::detail::device_ptr<float>, std::unique_ptr<::plssvm::hipsycl::detail::sycl::queue>>;
+// template class gpu_csvm<float, ::plssvm::hipsycl::detail::device_ptr<float>, std::unique_ptr<::plssvm::hipsycl::detail::sycl::queue>>;
 template class gpu_csvm<double, ::plssvm::hipsycl::detail::device_ptr<double>, std::unique_ptr<::plssvm::hipsycl::detail::sycl::queue>>;
 #endif
-#endif
+#endif */
 
 }  // namespace plssvm::detail

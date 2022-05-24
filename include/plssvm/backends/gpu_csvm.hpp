@@ -12,6 +12,7 @@
 #pragma once
 
 #include "plssvm/csvm.hpp"  // plssvm::csvm
+#include "plssvm/backends/CUDA/detail/device_ptr.cuh"  // plssvm::cuda::detail::device_ptr
 
 #include <cstddef>  // std::size_t
 #include <vector>   // std::vector
@@ -19,8 +20,7 @@
 namespace plssvm {
 
 // forward declare parameter class
-template <typename T>
-class parameter;
+// class parameter; // richtig so?
 
 namespace detail {
 
@@ -34,11 +34,13 @@ class execution_range;
  * @tparam device_ptr_t the type of the device pointer (dependent on the used backend)
  * @tparam queue_t the type of the device queue (dependent on the used backend)
  */
-template <typename T, typename device_ptr_t, typename queue_t>
-class gpu_csvm : public csvm<T> {
+class gpu_csvm : public csvm {
   protected:
+    using real_type = double;
+    using queue_t = int;
+    // using device_ptr_t = ::plssvm::cuda::detail::device_ptr<double>;
     /// The template base type of the C-SVM class.
-    using base_type = ::plssvm::csvm<T>;
+    /* using base_type = ::plssvm::csvm<T>;
 
     using base_type::alpha_ptr_;
     using base_type::bias_;
@@ -55,15 +57,14 @@ class gpu_csvm : public csvm<T> {
     using base_type::QA_cost_;
     using base_type::target_;
     using base_type::value_ptr_;
-    using base_type::w_;
+    using base_type::w_; */
 
   public:
     // Be able to use overloaded base class functions.
-    using base_type::predict;
+    // using base_type::predict;
 
-    using typename base_type::real_type;
     /// The type of the device pointer (dependent on the used backend).
-    using device_ptr_type = device_ptr_t;
+    using device_ptr_type = ::plssvm::cuda::detail::device_ptr<double>;
     /// The type of the device queue (dependent on the used backend).
     using queue_type = queue_t;
 
@@ -72,7 +73,7 @@ class gpu_csvm : public csvm<T> {
      * @param[in] params struct encapsulating all possible parameters
      * @throws plssvm::csvm::csvm() exceptions
      */
-    explicit gpu_csvm(const parameter<T> &params);
+    explicit gpu_csvm(const parameter &params);
 
     /**
      * @brief Virtual destructor to enable safe inheritance.

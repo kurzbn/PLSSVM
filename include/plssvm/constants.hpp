@@ -15,6 +15,7 @@ namespace plssvm {
 
 /// Integer type used inside kernels.
 using kernel_index_type = int;
+using real_type = double;
 
 /// Global compile-time constant used for internal caching.
 #if defined(PLSSVM_THREAD_BLOCK_SIZE)

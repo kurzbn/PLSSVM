@@ -37,7 +37,6 @@ namespace plssvm {
 
 namespace detail {
 
-template <typename real_type>
 void parse_libsvm_content(const file_reader &f, const std::size_t start, std::vector<std::vector<real_type>> &data, std::vector<real_type> &values) {
     std::size_t max_size = 0;
     std::exception_ptr parallel_exception;
@@ -118,8 +117,7 @@ void parse_libsvm_content(const file_reader &f, const std::size_t start, std::ve
 }  // namespace detail
 
 // read and parse file
-template <typename T>
-void parameter<T>::parse_file(const std::string &filename, std::shared_ptr<const std::vector<std::vector<real_type>>> &data_ptr_ref) {
+void parameter::parse_file(const std::string &filename, std::shared_ptr<const std::vector<std::vector<real_type>>> &data_ptr_ref) {
     if (detail::ends_with(filename, ".arff")) {
         parse_arff_file(filename, data_ptr_ref);
     } else {
@@ -128,8 +126,7 @@ void parameter<T>::parse_file(const std::string &filename, std::shared_ptr<const
 }
 
 // read and parse a libsvm file
-template <typename T>
-void parameter<T>::parse_libsvm_file(const std::string &filename, std::shared_ptr<const std::vector<std::vector<real_type>>> &data_ptr_ref) {
+void parameter::parse_libsvm_file(const std::string &filename, std::shared_ptr<const std::vector<std::vector<real_type>>> &data_ptr_ref) {
     auto start_time = std::chrono::steady_clock::now();
 
     // set new filenames
@@ -176,8 +173,7 @@ void parameter<T>::parse_libsvm_file(const std::string &filename, std::shared_pt
 }
 
 // read and parse an ARFF file
-template <typename T>
-void parameter<T>::parse_arff_file(const std::string &filename, std::shared_ptr<const std::vector<std::vector<real_type>>> &data_ptr_ref) {
+void parameter::parse_arff_file(const std::string &filename, std::shared_ptr<const std::vector<std::vector<real_type>>> &data_ptr_ref) {
     auto start_time = std::chrono::steady_clock::now();
 
     // set new filenames
@@ -362,8 +358,7 @@ void parameter<T>::parse_arff_file(const std::string &filename, std::shared_ptr<
     }
 }
 
-template <typename T>
-void parameter<T>::parse_model_file(const std::string &filename) {
+void parameter::parse_model_file(const std::string &filename) {
     auto start_time = std::chrono::steady_clock::now();
 
     // set new filenames
@@ -519,21 +514,18 @@ void parameter<T>::parse_model_file(const std::string &filename) {
     }
 }
 
-template <typename T>
-void parameter<T>::parse_train_file(const std::string &filename) {
+void parameter::parse_train_file(const std::string &filename) {
     parse_file(filename, data_ptr);
     if (value_ptr == nullptr) {
         throw invalid_file_format_exception{ "Missing labels for train file!" };
     }
 }
 
-template <typename T>
-void parameter<T>::parse_test_file(const std::string &filename) {
+void parameter::parse_test_file(const std::string &filename) {
     parse_file(filename, test_data_ptr);
 }
 
-template <typename T>
-std::ostream &operator<<(std::ostream &out, const parameter<T> &params) {
+std::ostream &operator<<(std::ostream &out, const parameter &params) {
     return out << fmt::format(
                "kernel_type                 {}\n"
                "degree                      {}\n"
@@ -566,25 +558,20 @@ std::ostream &operator<<(std::ostream &out, const parameter<T> &params) {
                params.model_filename,
                params.predict_filename,
                params.rho,
-               detail::arithmetic_type_name<typename parameter<T>::real_type>());
+               detail::arithmetic_type_name<double>());
 }
-template std::ostream &operator<<(std::ostream &, const parameter<float> &);
-template std::ostream &operator<<(std::ostream &, const parameter<double> &);
 
-template <typename T>
-[[nodiscard]] std::string parameter<T>::model_name_from_input() {
+[[nodiscard]] std::string parameter::model_name_from_input() {
     std::string::size_type pos = input_filename.find_last_of("/\\");
     return input_filename.substr(pos + 1) + ".model";
 }
 
-template <typename T>
-[[nodiscard]] std::string parameter<T>::predict_name_from_input() {
+[[nodiscard]] std::string parameter::predict_name_from_input() {
     std::string::size_type pos = input_filename.find_last_of("/\\");
     return input_filename.substr(pos + 1) + ".predict";
 }
 
 // explicitly instantiate template class
-template class parameter<float>;
-template class parameter<double>;
+// template class parameter<double>;
 
 }  // namespace plssvm

@@ -23,6 +23,8 @@
 #include <type_traits>  // std::is_same_v
 #include <vector>       // std::vector
 
+using real_type = double;
+
 namespace plssvm {
 
 namespace sycl {
@@ -33,15 +35,10 @@ using namespace ::plssvm::sycl_generic;
  * @brief Base class for encapsulating all necessary parameters possibly provided through command line arguments.
  * @tparam T the type of the data
  */
-template <typename T>
+
 class parameter {
-    // only float and doubles are allowed
-    static_assert(std::is_same_v<T, float> || std::is_same_v<T, double>, "The template type can only be 'float' or 'double'!");
 
   public:
-    /// The type of the data. Must be either `float` or `double`.
-    using real_type = T;
-
     /**
      * @brief Virtual destructor to enable safe inheritance.
      */
@@ -234,9 +231,6 @@ class parameter {
     [[nodiscard]] std::string predict_name_from_input();
 };
 
-extern template class parameter<float>;
-extern template class parameter<double>;
-
 /**
  * @brief Output all parameters encapsulated by @p params to the given output-stream @p out.
  * @tparam T the type of the data
@@ -244,7 +238,6 @@ extern template class parameter<double>;
  * @param[in] params the parameters
  * @return the output-stream
  */
-template <typename T>
-std::ostream &operator<<(std::ostream &out, const parameter<T> &params);
+std::ostream &operator<<(std::ostream &out, const parameter &params);
 
 }  // namespace plssvm

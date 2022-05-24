@@ -29,8 +29,7 @@
 
 namespace plssvm::openmp {
 
-template <typename T>
-csvm<T>::csvm(const parameter<T> &params) :
+csvm::csvm(const parameter &params) :
     ::plssvm::csvm<T>{ params } {
     // check if supported target platform has been selected
     if (target_ != target_platform::automatic && target_ != target_platform::cpu) {
@@ -46,8 +45,7 @@ csvm<T>::csvm(const parameter<T> &params) :
     }
 }
 
-template <typename T>
-auto csvm<T>::generate_q() -> std::vector<real_type> {
+auto csvm::generate_q() -> std::vector<real_type> {
     std::vector<real_type> q(data_ptr_->size() - 1);
     switch (kernel_) {
         case kernel_type::linear:
@@ -63,8 +61,7 @@ auto csvm<T>::generate_q() -> std::vector<real_type> {
     return q;
 }
 
-template <typename T>
-void csvm<T>::run_device_kernel(const std::vector<real_type> &q, std::vector<real_type> &ret, const std::vector<real_type> &d, const std::vector<std::vector<real_type>> &data, const real_type add) {
+void csvm::run_device_kernel(const std::vector<real_type> &q, std::vector<real_type> &ret, const std::vector<real_type> &d, const std::vector<std::vector<real_type>> &data, const real_type add) {
     switch (kernel_) {
         case kernel_type::linear:
             openmp::device_kernel_linear(q, ret, d, data, QA_cost_, 1 / cost_, add);
@@ -78,8 +75,7 @@ void csvm<T>::run_device_kernel(const std::vector<real_type> &q, std::vector<rea
     }
 }
 
-template <typename T>
-auto csvm<T>::solver_CG(const std::vector<real_type> &b, const std::size_t imax, const real_type eps, const std::vector<real_type> &q) -> std::vector<real_type> {
+auto csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax, const real_type eps, const std::vector<real_type> &q) -> std::vector<real_type> {
     using namespace plssvm::operators;
 
     std::vector<real_type> alpha(b.size(), 1.0);
@@ -169,8 +165,7 @@ auto csvm<T>::solver_CG(const std::vector<real_type> &b, const std::size_t imax,
     return alpha;
 }
 
-template <typename T>
-void csvm<T>::update_w() {
+void csvm::update_w() {
     // resize and reset all values to zero
     w_.resize(num_features_);
     std::fill(w_.begin(), w_.end(), real_type{ 0.0 });
@@ -187,8 +182,7 @@ void csvm<T>::update_w() {
     }
 }
 
-template <typename T>
-auto csvm<T>::predict(const std::vector<std::vector<real_type>> &points) -> std::vector<real_type> {
+auto csvm::predict(const std::vector<std::vector<real_type>> &points) -> std::vector<real_type> {
     using namespace plssvm::operators;
 
     PLSSVM_ASSERT(data_ptr_ != nullptr, "No data is provided!");  // exception in constructor
@@ -244,7 +238,7 @@ auto csvm<T>::predict(const std::vector<std::vector<real_type>> &points) -> std:
 }
 
 // explicitly instantiate template class
-template class csvm<float>;
-template class csvm<double>;
+// template class csvm<float>;
+// template class csvm<double>;
 
 }  // namespace plssvm::openmp

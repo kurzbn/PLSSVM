@@ -26,16 +26,14 @@
 
 namespace plssvm {
 
-template <typename T>
-parameter_train<T>::parameter_train(std::string p_input_filename) {
-    base_type::input_filename = std::move(p_input_filename);
-    base_type::model_filename = base_type::model_name_from_input();
+parameter_train::parameter_train(std::string p_input_filename) {
+    input_filename = std::move(p_input_filename);
+    model_filename = model_name_from_input();
 
-    base_type::parse_train_file(input_filename);
+    parse_train_file(input_filename);
 }
 
-template <typename T>
-parameter_train<T>::parameter_train(int argc, char **argv) {
+parameter_train::parameter_train(int argc, char **argv) {
     cxxopts::Options options(argv[0], "LS-SVM with multiple (GPU-)backends");
     options
         .positional_help("training_set_file [model_file]")
@@ -135,14 +133,14 @@ parameter_train<T>::parameter_train(int argc, char **argv) {
     if (result.count("model")) {
         model_filename = result["model"].as<decltype(model_filename)>();
     } else {
-        model_filename = base_type::model_name_from_input();
+        model_filename = model_name_from_input();
     }
 
-    base_type::parse_train_file(input_filename);
+    parse_train_file(input_filename);
 }
 
 // explicitly instantiate template class
-template class parameter_train<float>;
-template class parameter_train<double>;
+
+// template class parameter_train<double>;
 
 }  // namespace plssvm

@@ -24,18 +24,17 @@
 
 namespace plssvm {
 
-template <typename T>
-parameter_predict<T>::parameter_predict(std::string p_input_filename, std::string p_model_filename) {
-    base_type::input_filename = std::move(p_input_filename);
-    base_type::model_filename = std::move(p_model_filename);
-    base_type::predict_filename = base_type::predict_name_from_input();
 
-    base_type::parse_model_file(base_type::model_filename);
-    base_type::parse_test_file(base_type::input_filename);
+parameter_predict::parameter_predict(std::string p_input_filename, std::string p_model_filename) {
+    input_filename = std::move(p_input_filename);
+    model_filename = std::move(p_model_filename);
+    predict_filename = predict_name_from_input();
+
+    parse_model_file(model_filename);
+    parse_test_file(input_filename);
 }
 
-template <typename T>
-parameter_predict<T>::parameter_predict(int argc, char **argv) {
+parameter_predict::parameter_predict(int argc, char **argv) {
     cxxopts::Options options(argv[0], "LS-SVM with multiple (GPU-)backends");
     options
         .positional_help("test_file model_file [output_file]")
@@ -107,15 +106,14 @@ parameter_predict<T>::parameter_predict(int argc, char **argv) {
     if (result.count("output")) {
         predict_filename = result["output"].as<decltype(predict_filename)>();
     } else {
-        predict_filename = base_type::predict_name_from_input();
+        predict_filename = predict_name_from_input();
     }
 
-    base_type::parse_model_file(model_filename);
-    base_type::parse_test_file(input_filename);
+    parse_model_file(model_filename);
+    parse_test_file(input_filename);
 }
 
 // explicitly instantiate template class
-template class parameter_predict<float>;
-template class parameter_predict<double>;
+// template class parameter_predict<double>;
 
 }  // namespace plssvm

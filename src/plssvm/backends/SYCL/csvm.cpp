@@ -37,7 +37,7 @@
 namespace plssvm::@PLSSVM_SYCL_BACKEND_NAMESPACE_NAME@ {
 
 template <typename T>
-csvm<T>::csvm(const parameter<T> &params) :
+csvm<T>::csvm(const parameter &params) :
     base_type{ params }, invocation_type_{ params.sycl_kernel_invocation_type } {
     // check whether the requested target platform has been enabled
     switch (target_) {

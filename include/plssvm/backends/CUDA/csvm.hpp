@@ -18,9 +18,9 @@
 
 namespace plssvm {
 
-// forward declare parameter class
+/* forward declare parameter class
 template <typename T>
-class parameter;
+class parameter; */
 
 namespace detail {
 
@@ -35,12 +35,12 @@ namespace cuda {
  * @brief A C-SVM implementation using CUDA as backend.
  * @tparam T the type of the data
  */
-template <typename T>
-class csvm : public ::plssvm::detail::gpu_csvm<T, ::plssvm::cuda::detail::device_ptr<T>, int> {
+
+class csvm : public ::plssvm::detail::gpu_csvm {
   protected:
     // protected for the test mock class
     /// The template base type of the CUDA C-SVM class.
-    using base_type = ::plssvm::detail::gpu_csvm<T, ::plssvm::cuda::detail::device_ptr<T>, int>;
+    /*using base_type = ::plssvm::detail::gpu_csvm<T, ::plssvm::cuda::detail::device_ptr<T>, int>;
 
     using base_type::coef0_;
     using base_type::cost_;
@@ -61,11 +61,11 @@ class csvm : public ::plssvm::detail::gpu_csvm<T, ::plssvm::cuda::detail::device
 
     using base_type::boundary_size_;
     using base_type::dept_;
-
+    */
   public:
-    using typename base_type::real_type;
-    using typename base_type::device_ptr_type;
-    using typename base_type::queue_type;
+    using real_type = double;
+    using device_ptr_type = ::plssvm::cuda::detail::device_ptr<double>;
+    using queue_type = int;
 
     /**
      * @brief Construct a new C-SVM using the CUDA backend with the parameters given through @p params.
@@ -75,7 +75,7 @@ class csvm : public ::plssvm::detail::gpu_csvm<T, ::plssvm::cuda::detail::device
      * @throws plssvm::cuda::backend_exception if the plssvm::target_platform::gpu_nvidia target isn't available
      * @throws plssvm::cuda::backend_exception if no CUDA devices could be found
      */
-    explicit csvm(const parameter<T> &params);
+    explicit csvm(const parameter &params);
 
     /**
      * @brief Wait for all operations on all CUDA devices to finish.
@@ -92,11 +92,11 @@ class csvm : public ::plssvm::detail::gpu_csvm<T, ::plssvm::cuda::detail::device
     /**
      * @copydoc plssvm::detail::gpu_csvm::run_q_kernel
      */
-    void run_q_kernel(std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type &q_d, std::size_t num_features) final;
+    void run_q_kernel(std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type &q_d, std::size_t num_features);
     /**
      * @copydoc plssvm::detail::gpu_csvm::run_svm_kernel
      */
-    void run_svm_kernel(std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add, std::size_t num_features) final;
+    void run_svm_kernel(std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add, std::size_t num_features);
     /**
      * @copydoc plssvm::detail::gpu_csvm::run_w_kernel
      */
@@ -107,8 +107,7 @@ class csvm : public ::plssvm::detail::gpu_csvm<T, ::plssvm::cuda::detail::device
     void run_predict_kernel(const ::plssvm::detail::execution_range &range, device_ptr_type &out_d, const device_ptr_type &alpha_d, const device_ptr_type &point_d, std::size_t num_predict_points) final;
 };
 
-extern template class csvm<float>;
-extern template class csvm<double>;
+// extern template class csvm<double>;
 
 }  // namespace cuda
 }  // namespace plssvm

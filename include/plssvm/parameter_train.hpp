@@ -21,34 +21,8 @@ namespace plssvm {
  * @brief Class for encapsulating all necessary parameters for training possibly provided through command line arguments.
  * @tparam T the type of the data
  */
-template <typename T>
-class parameter_train : public parameter<T> {
+class parameter_train : public parameter {
   public:
-    /// The template base type of the parameter_train class.
-    using base_type = parameter<T>;
-
-    using base_type::backend;
-    using base_type::coef0;
-    using base_type::cost;
-    using base_type::degree;
-    using base_type::epsilon;
-    using base_type::gamma;
-    using base_type::kernel;
-    using base_type::print_info;
-    using base_type::target;
-    using base_type::sycl_kernel_invocation_type;
-    using base_type::sycl_implementation_type;
-
-    using base_type::input_filename;
-    using base_type::model_filename;
-    using base_type::predict_filename;
-
-    using base_type::alpha_ptr;
-    using base_type::data_ptr;
-    using base_type::test_data_ptr;
-    using base_type::value_ptr;
-
-    using base_type::rho;
 
     /**
      * @brief Default construct all training parameters.
@@ -70,7 +44,6 @@ class parameter_train : public parameter<T> {
     parameter_train(int argc, char **argv);
 };
 
-extern template class parameter_train<float>;
-extern template class parameter_train<double>;
+// extern template class parameter_train<double>;
 
 }  // namespace plssvm
