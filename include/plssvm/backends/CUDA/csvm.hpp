@@ -65,6 +65,7 @@ class csvm : public ::plssvm::detail::gpu_csvm {
   public:
     using real_type = double;
     using device_ptr_type = ::plssvm::cuda::detail::device_ptr<double>;
+    using device_ptr_type_float = ::plssvm::cuda::detail::device_ptr<float>;
     using queue_type = int;
 
     /**
@@ -97,6 +98,7 @@ class csvm : public ::plssvm::detail::gpu_csvm {
      * @copydoc plssvm::detail::gpu_csvm::run_svm_kernel
      */
     void run_svm_kernel(std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add, std::size_t num_features);
+    void run_svm_kernel_f(std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, real_type add, std::size_t num_features);
     /**
      * @copydoc plssvm::detail::gpu_csvm::run_w_kernel
      */
@@ -105,6 +107,11 @@ class csvm : public ::plssvm::detail::gpu_csvm {
      * @copydoc plssvm::detail::gpu_csvm::run_predict_kernel
      */
     void run_predict_kernel(const ::plssvm::detail::execution_range &range, device_ptr_type &out_d, const device_ptr_type &alpha_d, const device_ptr_type &point_d, std::size_t num_predict_points) final;
+
+    void run_transformation_kernel_df(const std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type_float &float_out, const device_ptr_type &double_in);
+
+
+    void run_transformation_kernel_fd(const std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type &double_out, const device_ptr_type_float &float_in);
 };
 
 // extern template class csvm<double>;

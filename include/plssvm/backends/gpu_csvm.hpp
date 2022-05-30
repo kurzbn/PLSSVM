@@ -65,6 +65,7 @@ class gpu_csvm : public csvm {
 
     /// The type of the device pointer (dependent on the used backend).
     using device_ptr_type = ::plssvm::cuda::detail::device_ptr<double>;
+    using device_ptr_type_float = ::plssvm::cuda::detail::device_ptr<float>;
     /// The type of the device queue (dependent on the used backend).
     using queue_type = queue_t;
 
@@ -115,12 +116,14 @@ class gpu_csvm : public csvm {
      * @param[in] add denotes whether the values are added or subtracted from the result vector
      */
     void run_device_kernel(std::size_t device, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add);
+    void run_device_kernel_f(std::size_t device, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add);
     /**
      * @brief Combines the data in @p buffer_d from all devices into @p buffer and distributes them back to each device.
      * @param[in,out] buffer_d the data to gather
      * @param[in,out] buffer the reduced data
      */
     void device_reduction(std::vector<device_ptr_type> &buffer_d, std::vector<real_type> &buffer);
+    void device_reduction_f(std::vector<device_ptr_type_float> &buffer_d, std::vector<float> &buffer);
 
     //*************************************************************************************************************************************//
     //                                         pure virtual, must be implemented by all subclasses                                         //
@@ -149,6 +152,7 @@ class gpu_csvm : public csvm {
      * @param[in] num_features number of features used for the calculation in the @p device
      */
     virtual void run_svm_kernel(std::size_t device, const detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add, std::size_t num_features) = 0;
+    virtual void run_svm_kernel_f(std::size_t device, const detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add, std::size_t num_features) = 0;
     /**
      * @brief Run the GPU kernel (only on the first GPU) the calculate the `w` vector used to speed up the prediction when using the linear kernel function.
      * @param[in] device the device ID denoting the GPU on which the kernel should be executed
@@ -168,6 +172,9 @@ class gpu_csvm : public csvm {
      */
     virtual void run_predict_kernel(const detail::execution_range &range, device_ptr_type &out_d, const device_ptr_type &alpha_d, const device_ptr_type &point_d, std::size_t num_predict_points) = 0;
 
+    virtual void run_transformation_kernel_df(const std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type_float &float_out, const device_ptr_type &double_in) = 0;
+
+    virtual void run_transformation_kernel_fd(const std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type &double_out, const device_ptr_type_float &float_in) = 0;
     //*************************************************************************************************************************************//
     //                                             internal variables specific to GPU backends                                             //
     //*************************************************************************************************************************************//

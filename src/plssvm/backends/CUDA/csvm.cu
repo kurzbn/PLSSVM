@@ -22,6 +22,8 @@
 #include "plssvm/parameter.hpp"                        // plssvm::parameter
 #include "plssvm/target_platforms.hpp"                 // plssvm::target_platform
 
+#include "plssvm/backends/CUDA/transform_kernel.cuh"         // plssvm::cuda::device_kernel_linear, plssvm::cuda::device_kernel_poly, plssvm::cuda::device_kernel_radial
+
 #include "fmt/core.h"     // fmt::print, fmt::format
 #include "fmt/ostream.h"  // can use fmt using operator<< overloads
 
@@ -141,6 +143,26 @@ void csvm::run_svm_kernel(const std::size_t device, const ::plssvm::detail::exec
     detail::peek_at_last_error();
 }
 
+void csvm::run_svm_kernel_f(const std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, const float add, const std::size_t num_features) {
+    auto [grid, block] = execution_range_to_native(range);
+
+    detail::set_device(device);
+    switch (kernel_) {
+        case kernel_type::linear:
+            cuda::device_kernel_linear<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_features, add, device);
+            break;
+        case kernel_type::polynomial:
+            PLSSVM_ASSERT(device == 0, "The polynomial kernel function currently only supports single GPU execution!");
+            cuda::device_kernel_poly<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_cols_, add, degree_, gamma_, coef0_);
+            break;
+        case kernel_type::rbf:
+            PLSSVM_ASSERT(device == 0, "The radial basis function kernel function currently only supports single GPU execution!");
+            cuda::device_kernel_radial<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_cols_, add, gamma_);
+            break;
+    }
+    detail::peek_at_last_error();
+}
+
 void csvm::run_w_kernel(const std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type &w_d, const device_ptr_type &alpha_d, const std::size_t num_features) {
     auto [grid, block] = execution_range_to_native(range);
 
@@ -163,6 +185,22 @@ void csvm::run_predict_kernel(const ::plssvm::detail::execution_range &range, de
             cuda::device_kernel_predict_radial<<<grid, block>>>(out_d.get(), data_d_[0].get(), data_last_d_[0].get(), alpha_d.get(), num_data_points_, point_d.get(), num_predict_points, num_features_, gamma_);
             break;
     }
+    detail::peek_at_last_error();
+}
+
+void csvm::run_transformation_kernel_df(const std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type_float &float_out, const device_ptr_type &double_in) {
+    auto [grid, block] = execution_range_to_native(range);
+
+    detail::set_device(device);
+    cuda::device_kernel_cast_double_to_float<<<grid, block>>>(double_in.get(), float_out.get(), double_in.size());
+    detail::peek_at_last_error();
+}
+
+void csvm::run_transformation_kernel_fd(const std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type &double_out, const device_ptr_type_float &float_in) {
+    auto [grid, block] = execution_range_to_native(range);
+
+    detail::set_device(device);
+    cuda::device_kernel_cast_float_to_double<<<grid, block>>>(float_in.get(), double_out.get(), float_in.size());
     detail::peek_at_last_error();
 }
 

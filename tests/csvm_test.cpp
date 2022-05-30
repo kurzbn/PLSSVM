@@ -32,7 +32,7 @@
 #include <vector>      // std::vector
 
 // the floating point types to test
-using floating_point_types = ::testing::Types<float, double>;
+using floating_point_types = ::testing::Types<double>;
 
 template <typename T>
 class BaseCSVMTransform : public ::testing::Test {};
