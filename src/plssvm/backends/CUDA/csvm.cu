@@ -65,7 +65,9 @@ csvm::csvm(const parameter &params) :
 
     // resize vectors accordingly
     data_d_.resize(devices_.size());
+    data_d_f_.resize(devices_.size());
     data_last_d_.resize(devices_.size());
+    data_last_d_f_.resize(devices_.size());
 
     if (print_info_) {
         // print found CUDA devices
@@ -149,16 +151,36 @@ void csvm::run_svm_kernel_f(const std::size_t device, const ::plssvm::detail::ex
     detail::set_device(device);
     switch (kernel_) {
         case kernel_type::linear:
-            cuda::device_kernel_linear<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_features, add, device);
+            cuda::device_kernel_linear<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_f_[device].get(), QA_cost_f_, 1 / cost_f_, num_rows_, num_features, add, device);
             break;
-        case kernel_type::polynomial:
+        /*case kernel_type::polynomial:
             PLSSVM_ASSERT(device == 0, "The polynomial kernel function currently only supports single GPU execution!");
             cuda::device_kernel_poly<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_cols_, add, degree_, gamma_, coef0_);
             break;
         case kernel_type::rbf:
             PLSSVM_ASSERT(device == 0, "The radial basis function kernel function currently only supports single GPU execution!");
             cuda::device_kernel_radial<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_cols_, add, gamma_);
+            break;*/
+    }
+    detail::peek_at_last_error();
+}
+
+void csvm::run_svm_kernel_m(const std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type &r_d, const device_ptr_type_float &x_d, const float add, const std::size_t num_features) {
+    auto [grid, block] = execution_range_to_native(range);
+
+    detail::set_device(device);
+    switch (kernel_) {
+        case kernel_type::linear:
+            cuda::device_kernel_linear_mixed<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_f_[device].get(), QA_cost_f_, 1 / cost_f_, num_rows_, num_features, add, device);
             break;
+        /*case kernel_type::polynomial:
+            PLSSVM_ASSERT(device == 0, "The polynomial kernel function currently only supports single GPU execution!");
+            cuda::device_kernel_poly<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_cols_, add, degree_, gamma_, coef0_);
+            break;
+        case kernel_type::rbf:
+            PLSSVM_ASSERT(device == 0, "The radial basis function kernel function currently only supports single GPU execution!");
+            cuda::device_kernel_radial<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_cols_, add, gamma_);
+            break;*/
     }
     detail::peek_at_last_error();
 }

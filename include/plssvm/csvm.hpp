@@ -247,6 +247,7 @@ class csvm {
     const real_type coef0_;
     /// The cost parameter in the C-SVM.
     real_type cost_;
+    float cost_f_;
     /// The error tolerance parameter for the CG algorithm.
     const real_type epsilon_;
     /// If `true` additional information (e.g. timing information) will be printed during execution.
@@ -270,6 +271,7 @@ class csvm {
     real_type bias_{};
     /// The bottom right matrix entry multiplied by cost.
     real_type QA_cost_{};
+    float QA_cost_f_{};
     /// The normal vector used for speeding up the prediction in case of the linear kernel function.
     std::vector<real_type> w_{};
 };

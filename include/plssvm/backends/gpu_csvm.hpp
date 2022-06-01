@@ -117,6 +117,7 @@ class gpu_csvm : public csvm {
      */
     void run_device_kernel(std::size_t device, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add);
     void run_device_kernel_f(std::size_t device, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add);
+    void run_device_kernel_m(std::size_t device, const device_ptr_type_float &q_d, device_ptr_type &r_d, const device_ptr_type_float &x_d, float add);
     /**
      * @brief Combines the data in @p buffer_d from all devices into @p buffer and distributes them back to each device.
      * @param[in,out] buffer_d the data to gather
@@ -153,6 +154,7 @@ class gpu_csvm : public csvm {
      */
     virtual void run_svm_kernel(std::size_t device, const detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add, std::size_t num_features) = 0;
     virtual void run_svm_kernel_f(std::size_t device, const detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add, std::size_t num_features) = 0;
+    virtual void run_svm_kernel_m(std::size_t device, const detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type &r_d, const device_ptr_type_float &x_d, float add, std::size_t num_features) = 0;
     /**
      * @brief Run the GPU kernel (only on the first GPU) the calculate the `w` vector used to speed up the prediction when using the linear kernel function.
      * @param[in] device the device ID denoting the GPU on which the kernel should be executed
@@ -193,8 +195,10 @@ class gpu_csvm : public csvm {
     std::vector<queue_type> devices_{};
     /// The data saved across all devices.
     std::vector<device_ptr_type> data_d_{};
+    std::vector<device_ptr_type_float> data_d_f_{};
     /// The last row of the data matrix.
     std::vector<device_ptr_type> data_last_d_{};
+    std::vector<device_ptr_type_float> data_last_d_f_{};
 };
 
 }  // namespace detail

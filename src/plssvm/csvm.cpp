@@ -38,7 +38,7 @@
 namespace plssvm {
 
 csvm::csvm(const parameter &params) :
-    target_{ params.target }, kernel_{ params.kernel }, degree_{ params.degree }, gamma_{ params.gamma }, coef0_{ params.coef0 }, cost_{ params.cost }, epsilon_{ params.epsilon }, print_info_{ params.print_info }, data_ptr_{ params.data_ptr }, value_ptr_{ params.value_ptr }, alpha_ptr_{ params.alpha_ptr }, bias_{ -params.rho } {
+    target_{ params.target }, kernel_{ params.kernel }, degree_{ params.degree }, gamma_{ params.gamma }, coef0_{ params.coef0 }, cost_{ params.cost }, cost_f_{ static_cast<float>(params.cost) }, epsilon_{ params.epsilon }, print_info_{ params.print_info }, data_ptr_{ params.data_ptr }, value_ptr_{ params.value_ptr }, alpha_ptr_{ params.alpha_ptr }, bias_{ -params.rho } {
     if (data_ptr_ == nullptr) {
         throw exception{ "No data points provided!" };
     } else if (data_ptr_->empty()) {
@@ -238,6 +238,7 @@ void csvm::learn() {
         #pragma omp section  // generate bottom right from A
         {
             QA_cost_ = kernel_function(data_ptr_->back(), data_ptr_->back()) + 1 / cost_;
+            QA_cost_f_ = static_cast<float>(QA_cost_);
         }
     }
 
@@ -250,6 +251,7 @@ void csvm::learn() {
 
     // solve minimization
     std::vector<real_type> alpha;
+    // alpha = solver_CG(b, num_features_, epsilon_, q);
     alpha = solver_CG(b, num_features_, epsilon_, q);
     bias_ = value_ptr_->back() + QA_cost_ * sum(alpha) - (transposed{ q } * alpha);
     alpha.emplace_back(-sum(alpha));
