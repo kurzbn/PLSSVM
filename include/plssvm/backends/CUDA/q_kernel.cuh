@@ -26,7 +26,7 @@ namespace plssvm::cuda {
  * @param[in] feature_range number of features used for the calculation
  */
 template <typename real_type>
-__global__ void device_kernel_q_linear(real_type *q, const real_type *data_d, const real_type *data_last, const kernel_index_type num_rows, const kernel_index_type feature_range);
+__global__ void device_kernel_q_linear(real_type *q, const real_type *data_d, const real_type *data_last, const kernel_index_type num_rows, const kernel_index_type feature_range, const real_type gamma);
 
 /**
  * @brief Calculates the `q` vector using the polynomial C-SVM kernel.

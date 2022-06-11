@@ -243,6 +243,7 @@ class csvm {
     const int degree_;
     /// The gamma parameter used in the polynomial and rbf kernel functions.
     real_type gamma_;
+    float gamma_f_;
     /// The coef0 parameter used in the polynomial kernel function.
     const real_type coef0_;
     /// The cost parameter in the C-SVM.
@@ -269,7 +270,7 @@ class csvm {
     std::size_t num_features_{};
     /// The bias after learning.
     real_type bias_{};
-    /// The bottom right matrix entry multiplied by cost.
+    /// The bottom right matrix entry added by cost.
     real_type QA_cost_{};
     float QA_cost_f_{};
     /// The normal vector used for speeding up the prediction in case of the linear kernel function.

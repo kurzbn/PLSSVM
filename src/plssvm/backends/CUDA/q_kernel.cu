@@ -13,16 +13,16 @@
 namespace plssvm::cuda {
 
 template <typename real_type>
-__global__ void device_kernel_q_linear(real_type *q, const real_type *data_d, const real_type *data_last, const kernel_index_type num_rows, const kernel_index_type feature_range) {
+__global__ void device_kernel_q_linear(real_type *q, const real_type *data_d, const real_type *data_last, const kernel_index_type num_rows, const kernel_index_type feature_range, const real_type gamma) {
     const kernel_index_type index = blockIdx.x * blockDim.x + threadIdx.x;
     real_type temp{ 0.0 };
     for (kernel_index_type i = 0; i < feature_range; ++i) {
         temp += data_d[i * num_rows + index] * data_last[i];
     }
-    q[index] = temp;
+    q[index] = temp * gamma;
 }
 // template __global__ void device_kernel_q_linear(float *, const float *, const float *, const kernel_index_type, const kernel_index_type);
-template __global__ void device_kernel_q_linear(double *, const double *, const double *, const kernel_index_type, const kernel_index_type);
+template __global__ void device_kernel_q_linear(double *, const double *, const double *, const kernel_index_type, const kernel_index_type, const real_type gamma);
 
 template <typename real_type>
 __global__ void device_kernel_q_poly(real_type *q, const real_type *data_d, const real_type *data_last, const kernel_index_type num_rows, const kernel_index_type num_cols, const int degree, const real_type gamma, const real_type coef0) {

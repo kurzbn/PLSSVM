@@ -70,7 +70,8 @@ __global__ void device_kernel_linear_mixed(const float *q, real_type *ret, const
                 }
                 if (i + x > j + y) {
                     // upper triangular matrix
-                    atomicAdd(&ret[i + y], static_cast<double>(temp * d[j + x]));
+                    const double double_tmp = static_cast<double>(temp * d[j + x]);
+                    atomicAdd(&ret[i + y], double_tmp);
                     ret_jx += temp * d[i + y];
                 } else if (i + x == j + y) {
                     // diagonal
@@ -81,13 +82,14 @@ __global__ void device_kernel_linear_mixed(const float *q, real_type *ret, const
                     }
                 }
             }
-            atomicAdd(&ret[j + x], static_cast<double>(ret_jx));
+            const double ret_double = static_cast<double>(ret_jx);
+            atomicAdd(&ret[j + x], ret_double);
         }
     }
 }
 
 template <typename real_type>
-__global__ void device_kernel_linear(const real_type *q, real_type *ret, const real_type *d, const real_type *data_d, const real_type QA_cost, const real_type cost, const kernel_index_type num_rows, const kernel_index_type feature_range, const real_type add, const kernel_index_type id) {
+__global__ void device_kernel_linear(const real_type *q, real_type *ret, const real_type *d, const real_type *data_d, const real_type QA_cost, const real_type cost, const kernel_index_type num_rows, const kernel_index_type feature_range, const real_type add, const real_type gamma, const kernel_index_type id) {
     kernel_index_type i = blockIdx.x * blockDim.x * INTERNAL_BLOCK_SIZE;
     kernel_index_type j = blockIdx.y * blockDim.y * INTERNAL_BLOCK_SIZE;
 
@@ -138,7 +140,7 @@ __global__ void device_kernel_linear(const real_type *q, real_type *ret, const r
             for (kernel_index_type y = 0; y < INTERNAL_BLOCK_SIZE; ++y) {
                 real_type temp;
                 if (id == 0) {
-                    temp = (matr[x][y] + QA_cost - q[i + y] - q[j + x]) * add;
+                    temp = (matr[x][y] * gamma + QA_cost - q[i + y] - q[j + x]) * add;
                 } else {
                     temp = matr[x][y] * add;
                 }
@@ -160,8 +162,8 @@ __global__ void device_kernel_linear(const real_type *q, real_type *ret, const r
     }
 }
 
-template __global__ void device_kernel_linear(const float *, float *, const float *, const float *, const float, const float, const kernel_index_type, const kernel_index_type, const float, const kernel_index_type);
-template __global__ void device_kernel_linear(const double *, double *, const double *, const double *, const double, const double, const kernel_index_type, const kernel_index_type, const double, const kernel_index_type);
+template __global__ void device_kernel_linear(const float *, float *, const float *, const float *, const float, const float, const kernel_index_type, const kernel_index_type, const float, const float, const kernel_index_type);
+template __global__ void device_kernel_linear(const double *, double *, const double *, const double *, const double, const double, const kernel_index_type, const kernel_index_type, const double, const real_type, const kernel_index_type);
 
 template <typename real_type>
 __global__ void device_kernel_poly(const real_type *q, real_type *ret, const real_type *d, const real_type *data_d, const real_type QA_cost, const real_type cost, const kernel_index_type num_rows, const kernel_index_type num_cols, const real_type add, const int degree, const real_type gamma, const real_type coef0) {

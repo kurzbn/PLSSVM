@@ -34,7 +34,7 @@ __global__ void device_kernel_linear_mixed(const float *q, real_type *ret, const
  * @param[in] id the id of the current device
  */
 template <typename real_type>
-__global__ void device_kernel_linear(const real_type *q, real_type *ret, const real_type *d, const real_type *data_d, const real_type QA_cost, const real_type cost, const kernel_index_type num_rows, const kernel_index_type feature_range, const real_type add, const kernel_index_type id);
+__global__ void device_kernel_linear(const real_type *q, real_type *ret, const real_type *d, const real_type *data_d, const real_type QA_cost, const real_type cost, const kernel_index_type num_rows, const kernel_index_type feature_range, const real_type add, const real_type gamma, const kernel_index_type id);
 
 /**
  * @brief Calculates the C-SVM kernel using the polynomial kernel function.

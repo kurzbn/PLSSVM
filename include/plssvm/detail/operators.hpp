@@ -114,11 +114,25 @@ template <typename T>
 [[nodiscard]] inline T operator*(const transposed<T> &lhs, const std::vector<T> &rhs) {
     PLSSVM_ASSERT(lhs.vec.size() == rhs.size(), "Sizes mismatch!: {} != {}", lhs.vec.size(), rhs.size());
 
-    T val{};
+    /* T val{};
     for (typename std::vector<T>::size_type i = 0; i < lhs.vec.size(); ++i) {
         val = std::fma(lhs.vec[i], rhs[i], val);
     }
-    return val;
+    return val; */
+    T val{};
+    T val_sum{};
+    T val_c{};
+    T val_y{};
+    T val_t{};
+    for (typename std::vector<T>::size_type i = 0; i < lhs.vec.size(); ++i) {
+        val = std::fma(lhs.vec[i], rhs[i], val);
+        val_y = std::fma(lhs.vec[i], rhs[i], -val_c);
+        val_t = val_sum + val_y;
+        val_c = (val_t - val_sum) - val_y;
+        val_sum = val_t;
+    }
+    // fmt::print("diff: {} \n", val_sum - val);
+    return val_sum;
 }
 
 /**

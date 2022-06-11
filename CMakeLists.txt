@@ -84,6 +84,13 @@ target_compile_options(${PLSSVM_BASE_LIBRARY_NAME} PUBLIC
 ########################################################################################################################
 ##                                    check for optional and necessary dependencies                                   ##
 ########################################################################################################################
+# check for Eigen
+find_package(Eigen3)
+target_link_libraries(${PLSSVM_BASE_LIBRARY_NAME} PUBLIC Eigen3::Eigen)
+
+
+
+
 # check for OpenMP (not for the backend!)
 find_package(OpenMP 4.0 QUIET)
 if(OpenMP_FOUND)

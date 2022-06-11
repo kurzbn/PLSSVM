@@ -35,12 +35,19 @@
 
 #include "fmt/chrono.h"  // directly print std::chrono literals with fmt
 #include "fmt/core.h"    // fmt::print
+#include "fmt/os.h"       // fmt::output_file
 
 #include <algorithm>  // std::all_of, std::min, std::max
 #include <chrono>     // std::chrono
 #include <cmath>      // std::ceil
 #include <cstddef>    // std::size_t
 #include <vector>     // std::vector
+
+#include <omp.h>
+
+#include <Eigen/Dense>
+#include <Eigen/Eigenvalues>
+using namespace Eigen;
 
 namespace plssvm::detail {
 
@@ -132,41 +139,81 @@ void gpu_csvm::setup_data_on_device() {
     boundary_size_ = static_cast<std::size_t>(THREAD_BLOCK_SIZE * INTERNAL_BLOCK_SIZE);
     num_rows_ = dept_ + boundary_size_;
     num_cols_ = num_features_;
-    feature_ranges_.reserve(devices_.size() + 1);
-    for (typename std::vector<queue_type>::size_type device = 0; device <= devices_.size(); ++device) {
-        feature_ranges_.push_back(device * num_cols_ / devices_.size());
-    }
 
-    // transform 2D to 1D data
-    const std::vector<real_type> transformed_data = csvm::transform_data(*data_ptr_, boundary_size_, dept_);
+        /* feature_ranges_.reserve(devices_.size() + 1);
+        for (typename std::vector<queue_type>::size_type device = 0; device <= devices_.size(); ++device) {
+            feature_ranges_.push_back(device * num_rows_ / devices_.size());
+        }
+        std::vector<double> fullMatrix((dept_ + boundary_size_) * (dept_ + boundary_size_), 0.0);
+        for(int i = 0; i < num_rows_; ++i){
+            for(int j = 0; j < num_rows_; ++j){
+                double sum = 0.0;
+                for(int k = 0; k < num_features_; ++k){
+                    sum += (*data_ptr_)[i][k]*(*data_ptr_)[j][k];
+                }
+                if (i == j){
+                    fullMatrix[i * num_rows_ + j] = sum - q[i] - q[j] + QA_cost_ + cost_;
+                } else {
+                    fullMatrix[i * num_rows_ + j] = sum - q[i] - q[j] + QA_cost_;
+                }
+            }
+        }
 
-    #pragma omp parallel for
-    for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
-        const std::size_t num_features = feature_ranges_[device + 1] - feature_ranges_[device];
+        #pragma omp parallel for
+        for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
+            const std::size_t num_features = feature_ranges_[device + 1] - feature_ranges_[device];
 
-        const detail::execution_range range_r ({ static_cast<std::size_t>(std::ceil(static_cast<real_type>(num_features + boundary_size_) / static_cast<real_type>(THREAD_BLOCK_SIZE))) },
-                                            { std::min<std::size_t>(THREAD_BLOCK_SIZE, num_features + boundary_size_) });
-
-        // initialize data_last on device
-        data_last_d_[device] = device_ptr_type{ num_features + boundary_size_, devices_[device] };
-        data_last_d_[device].memset(0);
-        data_last_d_[device].memcpy_to_device(data_ptr_->back().data() + feature_ranges_[device], 0, num_features);
-        
-        data_last_d_f_[device] = device_ptr_type_float{ num_features + boundary_size_, devices_[device] };
-        data_last_d_f_[device].memset(0);
-        run_transformation_kernel_df(0, range_r, data_last_d_f_[0], data_last_d_[0]);
+            const detail::execution_range range_r ({ static_cast<std::size_t>(std::ceil(static_cast<real_type>(dept_ + boundary_size_) / static_cast<real_type>(THREAD_BLOCK_SIZE))) },
+                                                { std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_ + boundary_size_) });
 
 
-        const std::size_t device_data_size = num_features * (dept_ + boundary_size_);
-        data_d_[device] = device_ptr_type{ device_data_size, devices_[device] };
-        data_d_[device].memcpy_to_device(transformed_data.data() + feature_ranges_[device] * (dept_ + boundary_size_), 0, device_data_size);
+            const std::size_t device_data_size = num_features * (dept_ + boundary_size_);
+            data_d_[device] = device_ptr_type{ device_data_size, devices_[device] };
+            data_d_[device].memcpy_to_device(fullMatrix.data() + feature_ranges_[device] * (dept_ + boundary_size_), 0, device_data_size);
 
-        const detail::execution_range range_full ({ static_cast<std::size_t>(std::ceil(static_cast<real_type>(num_features * (dept_ + boundary_size_)) / static_cast<real_type>(THREAD_BLOCK_SIZE))) },
-                                            { std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_) });
+            const detail::execution_range range_full ({ static_cast<std::size_t>(std::ceil(static_cast<real_type>(dept_ * (dept_ + boundary_size_)) / static_cast<real_type>(THREAD_BLOCK_SIZE))) },
+                                                { std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_ + boundary_size_) });
 
-        data_d_f_[device] = device_ptr_type_float{ device_data_size, devices_[device] };
-        run_transformation_kernel_df(device, range_full, data_d_f_[0], data_d_[0]);
-    }
+            data_d_f_[device] = device_ptr_type_float{ device_data_size, devices_[device] };
+            run_transformation_kernel_df(device, range_full, data_d_f_[0], data_d_[0]);
+        }
+        */
+
+
+        feature_ranges_.reserve(devices_.size() + 1);
+        for (typename std::vector<queue_type>::size_type device = 0; device <= devices_.size(); ++device) {
+            feature_ranges_.push_back(device * num_cols_ / devices_.size());
+        }
+        // transform 2D to 1D data
+        const std::vector<real_type> transformed_data = csvm::transform_data(*data_ptr_, boundary_size_, dept_);
+
+        #pragma omp parallel for
+        for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
+            const std::size_t num_features = feature_ranges_[device + 1] - feature_ranges_[device];
+
+            const detail::execution_range range_r ({ static_cast<std::size_t>(std::ceil(static_cast<real_type>(num_features + boundary_size_) / static_cast<real_type>(THREAD_BLOCK_SIZE))) },
+                                                { std::min<std::size_t>(THREAD_BLOCK_SIZE, num_features + boundary_size_) });
+
+            // initialize data_last on device
+            data_last_d_[device] = device_ptr_type{ num_features + boundary_size_, devices_[device] };
+            data_last_d_[device].memset(0);
+            data_last_d_[device].memcpy_to_device(data_ptr_->back().data() + feature_ranges_[device], 0, num_features);
+            
+            data_last_d_f_[device] = device_ptr_type_float{ num_features + boundary_size_, devices_[device] };
+            data_last_d_f_[device].memset(0);
+            run_transformation_kernel_df(0, range_r, data_last_d_f_[0], data_last_d_[0]);
+
+
+            const std::size_t device_data_size = num_features * (dept_ + boundary_size_);
+            data_d_[device] = device_ptr_type{ device_data_size, devices_[device] };
+            data_d_[device].memcpy_to_device(transformed_data.data() + feature_ranges_[device] * (dept_ + boundary_size_), 0, device_data_size);
+
+            const detail::execution_range range_full ({ static_cast<std::size_t>(std::ceil(static_cast<real_type>(num_features * (dept_ + boundary_size_)) / static_cast<real_type>(THREAD_BLOCK_SIZE))) },
+                                                { std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_) });
+
+            data_d_f_[device] = device_ptr_type_float{ device_data_size, devices_[device] };
+            run_transformation_kernel_df(device, range_full, data_d_f_[0], data_d_[0]);
+        }
 }
 
 auto gpu_csvm::generate_q() -> std::vector<real_type> {
@@ -191,6 +238,135 @@ auto gpu_csvm::generate_q() -> std::vector<real_type> {
 
     std::vector<real_type> q(dept_);
     device_reduction(q_d, q);
+    // fmt::print("data_ptr sizes: {} \n", data_ptr_->size());
+
+    // n-1 Matrix
+    /*
+    std::vector<double> fullMatrix(dept_ * dept_);
+    for(int i = 0; i < dept_; ++i){
+        for(int j = 0; j < dept_; ++j){
+            double sum = 0.0;
+            for(int k = 0; k < num_features_; ++k){
+                sum += (*data_ptr_)[i][k]*(*data_ptr_)[j][k];
+            }
+            if (i == j){
+                fullMatrix[i * dept_ + j] = sum - q[i] - q[j] + QA_cost_ + cost_;
+            } else {
+                fullMatrix[i * dept_ + j] = sum - q[i] - q[j] + QA_cost_;
+            }
+        }
+    }
+    size_t m_size = dept_;
+    */
+
+    // n+1 matrix in float
+    Eigen::setNbThreads(16);
+    size_t m_size = dept_+2;
+
+    /*
+    std::vector<float> fullMatrix_f((dept_+2) * (dept_+2));
+    //std::shared_ptr<std::vector<std::vector<float>>> data_ptr_f_(dept_+2, std::vector<float>(dept_+2));
+    std::shared_ptr<std::vector<std::vector<float>>> data_ptr_f_ = std::make_shared<std::vector<std::vector<float>>>(dept_+1, std::vector<float>(num_features_));
+    fmt::print("Hi \n");
+    float gamma_f = -1.0 / num_features_;
+    for(size_t i = 0; i < data_ptr_f_->size(); ++i){
+        for(size_t j = 0; j < (*data_ptr_f_)[0].size(); ++j){
+            (*data_ptr_f_)[i][j] = static_cast<float>((*data_ptr_)[i][j]); 
+        }
+    }
+    for(int i = 0; i < dept_+1; ++i){
+        for(int j = 0; j < dept_+1; ++j){
+            float sum = 0.0;
+            for(int k = 0; k < num_features_; ++k){
+                sum += ((*data_ptr_f_)[i][k]-(*data_ptr_f_)[j][k]) * ((*data_ptr_f_)[i][k]-(*data_ptr_f_)[j][k]);
+            }
+            if (i == j){
+                fullMatrix_f[i * (dept_+2) + j] = exp(gamma_f * sum) + cost_f_;
+            } else {
+                fullMatrix_f[i * (dept_+2) + j] = exp(gamma_f * sum); // exp(gamma_f * sum)
+            }
+        }
+    }
+    for(int i = 0; i < dept_+1; ++i){
+        fullMatrix_f[dept_+1+i*(dept_+2)] = 1.0;
+        fullMatrix_f[(dept_+1)*(dept_+2) + i] = 1.0;
+    }
+    fullMatrix_f[(dept_+2)*(dept_+2)-1]= 0.0;
+
+    fmt::print("Hi, wrote Matrix_F! Compute now ... \n");
+    MatrixXd mat_f(m_size, m_size);
+    for(int i = 0; i < m_size; ++i){
+        for(int j = 0; j < m_size; ++j){
+            mat_f(i, j) = static_cast<double>(fullMatrix_f[i * m_size + j]);
+        }
+    }
+    JacobiSVD<MatrixXd> svd_f(mat_f);
+    double cond_f = svd_f.singularValues()(0) / svd_f.singularValues()(svd_f.singularValues().size()-1);
+
+    fmt::print("Condition float is: {}, max_EW: {}; min_EW: {} \n", cond_f, svd_f.singularValues()(0), svd_f.singularValues()(svd_f.singularValues().size()-1));
+    fmt::ostream out_f = fmt::output_file("Eigenvalues_float.txt"); 
+    for(size_t i = 0; i < svd_f.singularValues().size(); ++i)
+    out_f.print("{} ", svd_f.singularValues()(i));
+    
+
+    // n+1 matrix 
+    double gamma = -1.0 / num_features_;
+    std::vector<double> fullMatrix((dept_+2) * (dept_+2));
+    for(int i = 0; i < dept_+1; ++i){
+        for(int j = 0; j < dept_+1; ++j){
+            double sum = 0.0;
+            for(int k = 0; k < num_features_; ++k){
+                sum += ((*data_ptr_)[i][k] - (*data_ptr_)[j][k]) * ((*data_ptr_)[i][k]-(*data_ptr_)[j][k]);
+            }
+            if (i == j){
+                fullMatrix[i * (dept_+2) + j] = exp(gamma * sum) + cost_;
+            } else {
+                fullMatrix[i * (dept_+2) + j] = exp(gamma * sum); //
+            }
+        }
+    }
+    for(int i = 0; i < dept_+1; ++i){
+        fullMatrix[dept_+1+i*(dept_+2)] = 1.0;
+        fullMatrix[(dept_+1)*(dept_+2) + i] = 1.0;
+    }
+    fullMatrix[(dept_+2)*(dept_+2)-1]= 0.0;
+    // size_t m_size = dept_+2; 
+
+    fmt::print("Hi, wrote Matrix_D! Compute now ... \n");
+    MatrixXd mat(m_size, m_size);
+    for(int i = 0; i < m_size; ++i){
+        for(int j = 0; j < m_size; ++j){
+            mat(i, j) = fullMatrix[i * m_size + j];
+        }
+    }
+    JacobiSVD<MatrixXd> svd(mat);
+    double cond = svd.singularValues()(0) / svd.singularValues()(svd.singularValues().size()-1);
+
+    fmt::print("Condition double is: {}, max_EW: {}; min_EW: {} \n", cond, svd.singularValues()(0), svd.singularValues()(svd.singularValues().size()-1));
+    fmt::ostream out = fmt::output_file("Eigenvalues_double.txt");
+    fmt::ostream out_error = fmt::output_file("Eigenvalues_diff.txt");  
+    for(size_t i = 0; i < svd.singularValues().size(); ++i){
+        out.print("{} ", svd.singularValues()(i));
+        out_error.print("{} ", svd.singularValues()(i) - svd_f.singularValues()(i));
+    }
+
+    
+    
+    double sum_diff = 0.0;
+    double sum_matrix = 0.0;
+    // double rel_sum_error = 0.0;
+    double tmp_f;
+    for(int i = 0; i < m_size; ++i){
+        for(int j = 0; j < m_size; ++j){
+            tmp_f = static_cast<double>(fullMatrix_f[i * m_size + j]);
+            sum_diff += (fullMatrix[i * m_size + j] - tmp_f > 0) ? fullMatrix[i * m_size + j] - tmp_f : tmp_f - fullMatrix[i * m_size + j];
+            sum_matrix += fullMatrix[i * m_size + j];
+        }
+    }
+    fmt::print("Diff sum is: {} , Matrix sum is: {} , rel_error is: {} \n", sum_diff, sum_matrix, sum_diff/sum_matrix);
+    */
+
+
     return q;
 }
 
@@ -200,13 +376,29 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
     PLSSVM_ASSERT(dept_ != 0, "dept_ not initialized! Maybe a call to setup_data_on_device() is missing?");
     PLSSVM_ASSERT(boundary_size_ != 0, "boundary_size_ not initialized! Maybe a call to setup_data_on_device() is missing?");
 
+    // Checks and co.
+    
+    
+    
+    
+    
+    
+    
+    // fmt::print("dept: {} \n", dept_);
+    fmt::ostream out = fmt::output_file("Res_Verlauf.txt"); 
+    fmt::ostream out_z = fmt::output_file("Analyse_zahlen.txt"); 
+    
+
+    std::vector<real_type> b_new(b);
+    real_type b_res = transposed<double>{ b } * b;
+
     std::vector<real_type> x(dept_, 1.0);
-    std::vector<float> x_f(dept_, 1.0);
+    // std::vector<float> x_f(dept_, 1.0);
     std::vector<device_ptr_type> x_d(devices_.size());
     std::vector<device_ptr_type_float> x_d_f(devices_.size());
 
     std::vector<real_type> r(dept_, 0.0);
-    std::vector<float> r_f(dept_, 0.0); //Debugging only
+    // std::vector<float> r_f(dept_, 0.0); //Debugging only
     std::vector<device_ptr_type> r_d(devices_.size());
     std::vector<device_ptr_type_float> r_d_f(devices_.size());
 
@@ -301,6 +493,9 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
         average_iteration_time += iteration_duration;
     };
 
+
+
+
     std::size_t run = 0;
     for (; run < imax; ++run) {
         if (print_info_) {
@@ -312,62 +507,94 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
         #pragma omp parallel for
         for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
             Ad_d[device].memset(0);
-            Ad_d_test[device].memset(0);
+            // Ad_d_test[device].memset(0);
             Ad_d_f[device].memset(0);
             r_d[device].memset(0, dept_);
             r_d_f[device].memset(0, dept_);
 
-            run_device_kernel_f(device, q_d_f[device], Ad_d_f[device], r_d_f[device], 1);
+            // run_device_kernel_f(device, q_d_f[device], Ad_d_f[device], r_d_f[device], 1);
+            // run_device_kernel_m(device, q_d_f[device], Ad_d_test[device], r_d_f[device], 1);
             run_device_kernel(device, q_d[device], Ad_d[device], r_d[device], 1);
             // run_transformation_kernel_fd(device, range_r, r_d[device], r_d_f[device]);
         }
         // update Ad (q)
-        device_reduction_f(Ad_d_f, Ad_f);
+        // device_reduction_f(Ad_d_f, Ad_f);
         device_reduction(Ad_d, Ad);
+        // device_reduction(Ad_d_test, Ad_test);
 
         
+        /*
+        double min_r = (Ad[0] > 0) ? Ad[0] : -Ad[0];
+        double max_r = (Ad[0] > 0) ? Ad[0] : -Ad[0];
+        double abs_tmp;
+        float min_r_f = (Ad_f[0] > 0) ? Ad_f[0] : -Ad_f[0];
+        float max_r_f = (Ad_f[0] > 0) ? Ad_f[0] : -Ad_f[0];
+        float abs_tmp_f;
         std::vector<real_type> testvec_d (dept_, 1);
         real_type r_orig = transposed<double>{ Ad } * testvec_d;
-        //std::vector<float> testvec_f (dept_, 1);
-        // real_type r_float = transposed<float>{ Ad_f } *testvec_f;
+        real_type r_reduction = sum(Ad);
+        fmt::print("\n r_diff: {} \n", (r_orig - r_reduction));
+        real_type r_mm = transposed<double>{ Ad_test } * testvec_d;
+        std::vector<float> testvec_f (dept_, 1);
+        real_type r_float = transposed<float>{ Ad_f } *testvec_f;
+        for(typename std::vector<queue_type>::size_type cast_i = 0; cast_i < dept_; ++cast_i)
+        {
+            abs_tmp = (Ad[cast_i] >0) ? Ad[cast_i] : -Ad[cast_i];
+            min_r = (min_r < abs_tmp) ? min_r : abs_tmp;
+            max_r = (max_r > abs_tmp) ? max_r : abs_tmp;
+            abs_tmp_f = (Ad_f[cast_i] >0) ? Ad_f[cast_i] : -Ad_f[cast_i];
+            min_r_f = (min_r_f < abs_tmp_f) ? min_r_f : abs_tmp_f;
+            max_r_f = (max_r_f > abs_tmp_f) ? max_r_f : abs_tmp_f;
+            // d[cast_i] = static_cast<double>(d_f[cast_i]);
+            // Ad[cast_i] = static_cast<double>(Ad_f[cast_i]);
+            // x[cast_i] = static_cast<double>(x_f[cast_i]);
+            Ad_test[cast_i] = static_cast<double>(Ad_f[cast_i]);
+        }        
+        real_type r_m = transposed<double>{ Ad_test } * testvec_d;
+        real_type error_sum_f = (r_orig > r_float) ? r_orig-r_float : r_float-r_orig;
+        real_type rel_error_f = error_sum_f / r_orig;
+        real_type error_sum_m = (r_orig > r_m) ? r_orig-r_m : r_m-r_orig;
+        real_type rel_error_m = error_sum_m / r_orig;
+        real_type error_sum_mm = (r_orig > r_mm) ? r_orig-r_mm : r_mm-r_orig;
+        real_type rel_error_mm = error_sum_mm / r_orig;
+        fmt::print("\n max_ri_i: {} min_r_i: {} max_ri_f: {} min_ri_f: {} orig_r_norm: {}  float_r_norm: {} mixed_r_norm: {} mixed_r_mat_norm: {} \n Summenfehler_O_F: {} relativerFehler_O_F: {} Summenfehler_O_M: {} relativerFehler_O_M: {} Summenfehler_O_MM: {} relativerFehler_O_MM: {} \n", 
+        max_r, min_r, max_r_f, min_r_f, r_orig, r_float, r_m, r_mm, error_sum_f, rel_error_f, error_sum_m, rel_error_m, error_sum_mm, rel_error_mm);
+        out.print("max_ri_d: {} max_ri_f: {} min_ri_d: {} min_ri_f: {} orig_r_norm: {}  float_r_norm: {} mixed_r_norm: {} mixed_r_mat_norm: {} Summenfehler_O_F: {} relativerFehler_O_F: {} Summenfehler_O_M: {} relativerFehler_O_M: {} Summenfehler_O_MM: {} relativerFehler_O_MM: {} \n", 
+        max_r, max_r_f, min_r, min_r_f, r_orig, r_float, r_m, r_mm, error_sum_f, rel_error_f, error_sum_m, rel_error_m, error_sum_mm, rel_error_mm);
+        out_z.print("{} {} {} {} {} {} {} {} {} {} {} {} {} {}\n", max_r, max_r_f, min_r, min_r_f, r_orig, r_float, r_m, r_mm, error_sum_f, rel_error_f, error_sum_m, rel_error_m, error_sum_mm, rel_error_mm);
+        */
+
+
         for(typename std::vector<queue_type>::size_type cast_i = 0; cast_i < dept_; ++cast_i)
         {
             // d[cast_i] = static_cast<double>(d_f[cast_i]);
             // Ad[cast_i] = static_cast<double>(Ad_f[cast_i]);
             // x[cast_i] = static_cast<double>(x_f[cast_i]);
-            Ad[cast_i] = Ad_test[cast_i];
-        }        
-        real_type r_transformed = transposed<double>{ Ad } * testvec_d;
-        real_type error_sum = (r_orig > r_transformed) ? r_orig-r_transformed : r_transformed-r_orig;
-        real_type rel_error = error_sum / r_orig;
-        fmt::print("\n orig: {}  float: x transformed: {} RundungsfehlerSummeMatMul: {} relativerFehler {} \n", r_orig, r_transformed, error_sum, rel_error);
-        
+        }   
 
-
-
-        /* for(typename std::vector<queue_type>::size_type cast_i = 0; cast_i < dept_; ++cast_i)
-        {
-            // d[cast_i] = static_cast<double>(d_f[cast_i]);
-            Ad[cast_i] = static_cast<double>(Ad_f[cast_i]);
-            // x[cast_i] = static_cast<double>(x_f[cast_i]);
-        }   */     
 
         // (alpha = delta_new / (d^T * q))
         const real_type alpha_cd = delta / (transposed<double>{ d } * Ad);
 
+        // r -= alpha_cd * Ad (r = r - alpha * q)
+        std::vector<real_type>r_old(r);
+        r -=  alpha_cd * Ad; 
         // (x = x + alpha * d)
         x += alpha_cd * d;
+        
+        /*
+        if (delta < 0.1 * b_res) {  //run % 50 == 49
 
-        if (run % 4 == 3) {  //run % 50 == 49
-
-            for(typename std::vector<queue_type>::size_type cast_i = 0; cast_i < dept_; ++cast_i) {
+             for(typename std::vector<queue_type>::size_type cast_i = 0; cast_i < dept_; ++cast_i) {
                 x_f[cast_i] = static_cast<float>(x[cast_i]);
             }
 
+            fmt::print("Hi, iteration number {} \n ", run);
+
             #pragma omp parallel for
             for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
-                x_d_f[device].memcpy_to_device(x_f, 0, dept_);
-                // x_d[device].memcpy_to_device(x, 0, dept_);
+                // x_d_f[device].memcpy_to_device(x_f, 0, dept_);
+                x_d[device].memcpy_to_device(x, 0, dept_);
             }
 
             #pragma omp parallel for
@@ -375,8 +602,8 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
                 if(device == 0) {
                     // r = b
                     // r_d[0].memcpy_to_device(b, 0, dept_);
-                    r_d[0].memcpy_to_device(b, 0, dept_);
-                    run_transformation_kernel_df(0, range_r, r_d_f[0], r_d[0]);
+                    r_d[0].memcpy_to_device(b_new, 0, dept_);
+                    // run_transformation_kernel_df(0, range_r, r_d_f[0], r_d[0]);
                 } else {
                     // set r to 0
                     r_d[device].memset(0);
@@ -384,15 +611,18 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
                 }
 
                 // r -= A * x
-                // run_device_kernel(device, q_d[device], r_d[device], x_d[device], -1);
-                run_device_kernel_f(device, q_d_f[device], r_d_f[device], x_d_f[device], -1);
+                run_device_kernel(device, q_d[device], r_d[device], x_d[device], -1);
+                // run_device_kernel_f(device, q_d_f[device], r_d_f[device], x_d_f[device], -1);
             }
-            run_transformation_kernel_fd(0, range_r, r_d[0], r_d_f[0]);
+            // run_transformation_kernel_fd(0, range_r, r_d[0], r_d_f[0]);
             device_reduction(r_d, r);
+            b_new = r;
+            b_res = transposed<double>{ b_new } * b_new;
+            delta = b_res;
         } else {
             // r -= alpha_cd * Ad (r = r - alpha * q)
-            r -= alpha_cd * Ad;
-        }
+            // r -= alpha_cd * Ad;
+        } */
 
         // (delta = r^T * r)
         const real_type delta_old = delta;
@@ -401,14 +631,15 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
         if (delta <= eps * eps * delta0) {
             if (print_info_) {
                 output_iteration_duration();
+                out.print("{}", delta);
             }
             break;
         }
 
         // (beta = delta_new / delta_old)
-        const real_type beta = delta / delta_old;
+        const real_type beta = (transposed<double>{ r } * (r_old - r))/ delta_old;
         // d = beta * d + r
-        d = beta * d + r;
+        d = r - beta * d;
 
         // r_d = d
         #pragma omp parallel for
@@ -419,6 +650,7 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
 
         if (print_info_) {
             output_iteration_duration();
+            out.print("{} ", delta);
         }
     }
     if (print_info_) {

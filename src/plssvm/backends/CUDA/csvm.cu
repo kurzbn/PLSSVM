@@ -111,7 +111,7 @@ void csvm::run_q_kernel(const std::size_t device, const ::plssvm::detail::execut
     detail::set_device(device);
     switch (kernel_) {
         case kernel_type::linear:
-            cuda::device_kernel_q_linear<<<grid, block>>>(q_d.get(), data_d_[device].get(), data_last_d_[device].get(), num_rows_, num_features);
+            cuda::device_kernel_q_linear<<<grid, block>>>(q_d.get(), data_d_[device].get(), data_last_d_[device].get(), num_rows_, num_features, gamma_);
             break;
         case kernel_type::polynomial:
             PLSSVM_ASSERT(device == 0, "The polynomial kernel function currently only supports single GPU execution!");
@@ -131,7 +131,7 @@ void csvm::run_svm_kernel(const std::size_t device, const ::plssvm::detail::exec
     detail::set_device(device);
     switch (kernel_) {
         case kernel_type::linear:
-            cuda::device_kernel_linear<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_features, add, device);
+            cuda::device_kernel_linear<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_features, add, gamma_, device);
             break;
         case kernel_type::polynomial:
             PLSSVM_ASSERT(device == 0, "The polynomial kernel function currently only supports single GPU execution!");
@@ -151,7 +151,7 @@ void csvm::run_svm_kernel_f(const std::size_t device, const ::plssvm::detail::ex
     detail::set_device(device);
     switch (kernel_) {
         case kernel_type::linear:
-            cuda::device_kernel_linear<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_f_[device].get(), QA_cost_f_, 1 / cost_f_, num_rows_, num_features, add, device);
+            cuda::device_kernel_linear<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_f_[device].get(), QA_cost_f_, 1 / cost_f_, num_rows_, num_features, add, gamma_f_, device);
             break;
         /*case kernel_type::polynomial:
             PLSSVM_ASSERT(device == 0, "The polynomial kernel function currently only supports single GPU execution!");

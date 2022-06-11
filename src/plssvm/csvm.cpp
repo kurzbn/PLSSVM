@@ -38,7 +38,7 @@
 namespace plssvm {
 
 csvm::csvm(const parameter &params) :
-    target_{ params.target }, kernel_{ params.kernel }, degree_{ params.degree }, gamma_{ params.gamma }, coef0_{ params.coef0 }, cost_{ params.cost }, cost_f_{ static_cast<float>(params.cost) }, epsilon_{ params.epsilon }, print_info_{ params.print_info }, data_ptr_{ params.data_ptr }, value_ptr_{ params.value_ptr }, alpha_ptr_{ params.alpha_ptr }, bias_{ -params.rho } {
+    target_{ params.target }, kernel_{ params.kernel }, degree_{ params.degree }, gamma_{ params.gamma }, gamma_f_{ static_cast<float>(params.gamma) }, coef0_{ params.coef0 }, cost_{ params.cost }, cost_f_{ static_cast<float>(params.cost) }, epsilon_{ params.epsilon }, print_info_{ params.print_info }, data_ptr_{ params.data_ptr }, value_ptr_{ params.value_ptr }, alpha_ptr_{ params.alpha_ptr }, bias_{ -params.rho } {
     if (data_ptr_ == nullptr) {
         throw exception{ "No data points provided!" };
     } else if (data_ptr_->empty()) {
