@@ -131,6 +131,7 @@ void csvm::run_svm_kernel(const std::size_t device, const ::plssvm::detail::exec
     detail::set_device(device);
     switch (kernel_) {
         case kernel_type::linear:
+            PLSSVM_CUDA_ERROR_CHECK(cudaFuncSetAttribute(cuda_p::device_kernel_linear<double>, cudaFuncAttributeMaxDynamicSharedMemorySize, INTERNAL_BLOCK_SIZE * INTERNAL_BLOCK_SIZE * (256 + 2) * 8 ));
             cuda::device_kernel_linear<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_features, add, gamma_, device);
             break;
         case kernel_type::polynomial:

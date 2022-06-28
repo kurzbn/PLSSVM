@@ -247,6 +247,7 @@ void csvm::learn() {
         fmt::print("Setup for solving the optimization problem done in {}.\n", std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time));
     }
 
+    fmt::print("Before CG \n");
     start_time = std::chrono::steady_clock::now();
 
     // solve minimization
@@ -363,7 +364,7 @@ auto csvm::kernel_function(const std::vector<real_type> &xi, const std::vector<r
 
     switch (kernel_) {
         case kernel_type::linear:
-            return plssvm::kernel_function<kernel_type::linear>(xi, xj);
+            return plssvm::kernel_function<kernel_type::linear>(xi, xj) * gamma_;
         case kernel_type::polynomial:
             return plssvm::kernel_function<kernel_type::polynomial>(xi, xj, degree_, gamma_, coef0_);
         case kernel_type::rbf:
