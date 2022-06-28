@@ -35,6 +35,7 @@
 
 #include "fmt/chrono.h"  // directly print std::chrono literals with fmt
 #include "fmt/core.h"    // fmt::print
+#include "fmt/os.h"       // fmt::output_file
 
 #include <algorithm>  // std::all_of, std::min, std::max
 #include <chrono>     // std::chrono
@@ -189,6 +190,8 @@ auto gpu_csvm<T, device_ptr_t, queue_t>::solver_CG(const std::vector<real_type> 
     PLSSVM_ASSERT(dept_ != 0, "dept_ not initialized! Maybe a call to setup_data_on_device() is missing?");
     PLSSVM_ASSERT(boundary_size_ != 0, "boundary_size_ not initialized! Maybe a call to setup_data_on_device() is missing?");
 
+    fmt::ostream out = fmt::output_file("res.txt");
+
     std::vector<real_type> x(dept_, 1.0);
     std::vector<device_ptr_type> x_d(devices_.size());
 
@@ -297,6 +300,7 @@ auto gpu_csvm<T, device_ptr_t, queue_t>::solver_CG(const std::vector<real_type> 
         if (delta <= eps * eps * delta0) {
             if (print_info_) {
                 output_iteration_duration();
+                out.print("{}", delta);
             }
             break;
         }
@@ -314,6 +318,7 @@ auto gpu_csvm<T, device_ptr_t, queue_t>::solver_CG(const std::vector<real_type> 
 
         if (print_info_) {
             output_iteration_duration();
+            out.print("{} ", delta);
         }
     }
     if (print_info_) {
@@ -391,8 +396,8 @@ void gpu_csvm<T, device_ptr_t, queue_t>::device_reduction(std::vector<device_ptr
 
 // explicitly instantiate template class depending on available backends
 #if defined(PLSSVM_HAS_CUDA_BACKEND)
-template class gpu_csvm<float, ::plssvm::cuda::detail::device_ptr<float>, int>;
-template class gpu_csvm<double, ::plssvm::cuda::detail::device_ptr<double>, int>;
+template class gpu_csvm<float, ::plssvm::cuda_p::detail::device_ptr<float>, int>;
+template class gpu_csvm<double, ::plssvm::cuda_p::detail::device_ptr<double>, int>;
 #endif
 #if defined(PLSSVM_HAS_HIP_BACKEND)
 template class gpu_csvm<float, ::plssvm::hip::detail::device_ptr<float>, int>;

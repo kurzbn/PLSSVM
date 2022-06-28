@@ -44,10 +44,10 @@ namespace plssvm::operators {}
 namespace plssvm::openmp {}
 
 /// Namespace containing the C-SVM using the CUDA backend.
-namespace plssvm::cuda {}
+namespace plssvm::cuda_p {}
 
 /// Namespace containing CUDA backend specific implementation details. **Should not** directly be used by users.
-namespace plssvm::cuda::detail {}
+namespace plssvm::cuda_p::detail {}
 
 /// Namespace containing the C-SVM using the HIP backend.
 namespace plssvm::hip {}

@@ -15,15 +15,15 @@
  * @def PLSSVM_CUDA_ERROR_CHECK
  * @brief Macro used for error checking CUDA runtime functions.
  */
-#define PLSSVM_CUDA_ERROR_CHECK(err) plssvm::cuda::detail::gpu_assert((err))
+#define PLSSVM_CUDA_ERROR_CHECK(err) plssvm::cuda_p::detail::gpu_assert((err))
 
-namespace plssvm::cuda::detail {
+namespace plssvm::cuda_p::detail {
 
 /**
- * @brief Check the CUDA error @p code. If @p code signals an error, throw a plssvm::cuda::backend_exception.
+ * @brief Check the CUDA error @p code. If @p code signals an error, throw a plssvm::cuda_p::backend_exception.
  * @details The exception contains the error name and error string.
  * @param[in] code the CUDA error code to check
- * @throws plssvm::cuda::backend_exception if the error code signals a failure
+ * @throws plssvm::cuda_p::backend_exception if the error code signals a failure
  */
 void gpu_assert(cudaError_t code);
 
@@ -46,10 +46,10 @@ void peek_at_last_error();
 
 /**
  * @brief Wait for the compute @p device to finish.
- * @details Calls plssvm::cuda::detail::peek_at_last_error() before synchronizing.
+ * @details Calls plssvm::cuda_p::detail::peek_at_last_error() before synchronizing.
  * @param[in] device the CUDA device to synchronize
- * @throws plssvm::cuda::backend_exception if the given device ID is smaller than 0 or greater or equal than the available number of devices
+ * @throws plssvm::cuda_p::backend_exception if the given device ID is smaller than 0 or greater or equal than the available number of devices
  */
 void device_synchronize(int device);
 
-}  // namespace plssvm::cuda::detail
+}  // namespace plssvm::cuda_p::detail

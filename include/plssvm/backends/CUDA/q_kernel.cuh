@@ -13,7 +13,7 @@
 
 #include "plssvm/constants.hpp"  // plssvm::kernel_index_type
 
-namespace plssvm::cuda {
+namespace plssvm::cuda_p {
 
 /**
  * @brief Calculates the `q` vector using the linear C-SVM kernel.

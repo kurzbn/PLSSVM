@@ -11,7 +11,7 @@
 
 #pragma once
 
-namespace plssvm::cuda::detail {
+namespace plssvm::cuda_p::detail {
 
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 600
 /**
@@ -32,4 +32,4 @@ __device__ __forceinline__ double atomicAdd(double *addr, const double val) {
 }
 #endif
 
-}  // namespace plssvm::cuda::detail
+}  // namespace plssvm::cuda_p::detail

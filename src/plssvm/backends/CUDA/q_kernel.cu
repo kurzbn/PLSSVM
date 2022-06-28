@@ -10,7 +10,7 @@
 
 #include "plssvm/constants.hpp"  // plssvm::THREAD_BLOCK_SIZE, plssvm::INTERNAL_BLOCK_SIZE
 
-namespace plssvm::cuda {
+namespace plssvm::cuda_p {
 
 template <typename real_type>
 __global__ void device_kernel_q_linear(real_type *q, const real_type *data_d, const real_type *data_last, const kernel_index_type num_rows, const kernel_index_type feature_range) {

@@ -13,7 +13,7 @@
 
 #include "plssvm/constants.hpp"  // plssvm::kernel_index_type
 
-namespace plssvm::cuda {
+namespace plssvm::cuda_p {
 
 /**
  * @brief Calculate the `w` vector to speed up the prediction of the labels for data points using the linear kernel function.

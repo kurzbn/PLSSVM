@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "plssvm/backends/CUDA/detail/device_ptr.cuh"  // plssvm::cuda::detail::device_ptr
+#include "plssvm/backends/CUDA/detail/device_ptr.cuh"  // plssvm::cuda_p::detail::device_ptr
 #include "plssvm/backends/gpu_csvm.hpp"                // plssvm::detail::gpu_csvm
 
 #include <cstddef>  // std::size_t
@@ -29,18 +29,18 @@ class execution_range;
 
 }  // namespace detail
 
-namespace cuda {
+namespace cuda_p {
 
 /**
  * @brief A C-SVM implementation using CUDA as backend.
  * @tparam T the type of the data
  */
 template <typename T>
-class csvm : public ::plssvm::detail::gpu_csvm<T, ::plssvm::cuda::detail::device_ptr<T>, int> {
+class csvm : public ::plssvm::detail::gpu_csvm<T, ::plssvm::cuda_p::detail::device_ptr<T>, int> {
   protected:
     // protected for the test mock class
     /// The template base type of the CUDA C-SVM class.
-    using base_type = ::plssvm::detail::gpu_csvm<T, ::plssvm::cuda::detail::device_ptr<T>, int>;
+    using base_type = ::plssvm::detail::gpu_csvm<T, ::plssvm::cuda_p::detail::device_ptr<T>, int>;
 
     using base_type::coef0_;
     using base_type::cost_;
@@ -71,9 +71,9 @@ class csvm : public ::plssvm::detail::gpu_csvm<T, ::plssvm::cuda::detail::device
      * @brief Construct a new C-SVM using the CUDA backend with the parameters given through @p params.
      * @param[in] params struct encapsulating all possible parameters
      * @throws plssvm::csvm::csvm() exceptions
-     * @throws plssvm::cuda::backend_exception if the target platform isn't plssvm::target_platform::automatic or plssvm::target_platform::gpu_nvidia
-     * @throws plssvm::cuda::backend_exception if the plssvm::target_platform::gpu_nvidia target isn't available
-     * @throws plssvm::cuda::backend_exception if no CUDA devices could be found
+     * @throws plssvm::cuda_p::backend_exception if the target platform isn't plssvm::target_platform::automatic or plssvm::target_platform::gpu_nvidia
+     * @throws plssvm::cuda_p::backend_exception if the plssvm::target_platform::gpu_nvidia target isn't available
+     * @throws plssvm::cuda_p::backend_exception if no CUDA devices could be found
      */
     explicit csvm(const parameter<T> &params);
 

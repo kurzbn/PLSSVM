@@ -16,7 +16,7 @@
 
 #include <string>  // std::string
 
-namespace plssvm::cuda {
+namespace plssvm::cuda_p {
 
 /**
  * @brief Exception type thrown if a problem with the CUDA backend occurs.

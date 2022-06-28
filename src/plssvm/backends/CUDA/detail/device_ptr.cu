@@ -17,7 +17,7 @@
 
 #include <algorithm>  // std::min
 
-namespace plssvm::cuda::detail {
+namespace plssvm::cuda_p::detail {
 
 template <typename T>
 device_ptr<T>::device_ptr(const size_type size, const queue_type device) :

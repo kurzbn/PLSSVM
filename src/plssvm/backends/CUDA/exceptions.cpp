@@ -13,7 +13,7 @@
 
 #include <string>  // std::string
 
-namespace plssvm::cuda {
+namespace plssvm::cuda_p {
 
 backend_exception::backend_exception(const std::string &msg, source_location loc) :
     ::plssvm::exception{ msg, "cuda::backend_exception", loc } {}

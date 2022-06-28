@@ -8,11 +8,11 @@
 
 #include "plssvm/backends/CUDA/detail/utility.cuh"
 
-#include "plssvm/backends/CUDA/exceptions.hpp"  // plssvm::cuda::backend_exception
+#include "plssvm/backends/CUDA/exceptions.hpp"  // plssvm::cuda_p::backend_exception
 
 #include "fmt/format.h"  // fmt::format
 
-namespace plssvm::cuda::detail {
+namespace plssvm::cuda_p::detail {
 
 void gpu_assert(const cudaError_t code) {
     if (code != cudaSuccess) {
@@ -43,4 +43,4 @@ void device_synchronize(const int device) {
     PLSSVM_CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 }
 
-}  // namespace plssvm::cuda::detail
+}  // namespace plssvm::cuda_p::detail

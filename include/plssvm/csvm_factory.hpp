@@ -66,7 +66,7 @@ template <typename T>
 
         case backend_type::cuda:
 #if defined(PLSSVM_HAS_CUDA_BACKEND)
-            return std::make_unique<cuda::csvm<T>>(params);
+            return std::make_unique<cuda_p::csvm<T>>(params);
 #else
             throw unsupported_backend_exception{ "No CUDA backend available!" };
 #endif

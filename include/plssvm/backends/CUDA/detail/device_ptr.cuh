@@ -13,7 +13,7 @@
 
 #include "plssvm/backends/gpu_device_ptr.hpp"  // plssvm::detail::gpu_device_ptr
 
-namespace plssvm::cuda::detail {
+namespace plssvm::cuda_p::detail {
 
 /**
  * @brief Small wrapper class around a CUDA device pointer together with commonly used device functions.
@@ -50,7 +50,7 @@ class device_ptr : public ::plssvm::detail::gpu_device_ptr<T, int> {
      * @brief Allocates `size * sizeof(T)` bytes on the device with ID @p device.
      * @param[in] size the number of elements represented by the device_ptr
      * @param[in] device the associated CUDA device
-     * @throws plssvm::cuda::backend_exception if the given device ID is smaller than 0 or greater or equal than the available number of devices
+     * @throws plssvm::cuda_p::backend_exception if the given device ID is smaller than 0 or greater or equal than the available number of devices
      */
     explicit device_ptr(size_type size, queue_type device = 0);
 
@@ -94,4 +94,4 @@ class device_ptr : public ::plssvm::detail::gpu_device_ptr<T, int> {
 extern template class device_ptr<float>;
 extern template class device_ptr<double>;
 
-}  // namespace plssvm::cuda::detail
+}  // namespace plssvm::cuda_p::detail
