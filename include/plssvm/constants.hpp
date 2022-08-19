@@ -38,6 +38,15 @@ constexpr kernel_index_type OPENMP_BLOCK_SIZE = PLSSVM_OPENMP_BLOCK_SIZE;
 constexpr kernel_index_type OPENMP_BLOCK_SIZE = 64;
 #endif
 
+// Test CUDA Defines
+#define WARP_SIZE 32
+#define WARPS_PER_BLOCK 16
+#define THREADS_PER_BLOCK (WARP_SIZE * WARPS_PER_BLOCK)
+#define BLOCK_SIZE 128
+#define BLOCK_OFF 136
+#define ROLL_SIZE 16
+#define ROLL_SIZE_HALF 8
+
 // perform sanity checks
 static_assert(THREAD_BLOCK_SIZE > 0, "THREAD_BLOCK_SIZE must be greater than 0!");
 static_assert(INTERNAL_BLOCK_SIZE > 0, "INTERNAL_BLOCK_SIZE must be greater than 0!");

@@ -98,6 +98,7 @@ class csvm : public ::plssvm::detail::gpu_csvm {
      * @copydoc plssvm::detail::gpu_csvm::run_svm_kernel
      */
     void run_svm_kernel(std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add, std::size_t num_features);
+    void run_svm_kernel_t(std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add, std::size_t num_features);
     void run_svm_kernel_f(std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add, std::size_t num_features);
     void run_svm_kernel_m(std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type &r_d, const device_ptr_type_float &x_d, float add, std::size_t num_features);
     /**

@@ -247,7 +247,7 @@ void csvm::learn() {
         fmt::print("Setup for solving the optimization problem done in {}.\n", std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time));
     }
 
-    fmt::print("Before CG \n");
+    // fmt::print("Before CG \n");
     start_time = std::chrono::steady_clock::now();
 
     // solve minimization
