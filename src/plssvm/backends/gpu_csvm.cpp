@@ -137,7 +137,7 @@ void gpu_csvm::setup_data_on_device() {
     // set values of member variables
     dept_ = num_data_points_ - 1;
     boundary_size_ = static_cast<std::size_t>(THREAD_BLOCK_SIZE * INTERNAL_BLOCK_SIZE); // static_cast<std::size_t>(THREAD_BLOCK_SIZE * INTERNAL_BLOCK_SIZE); // 64 // ToDo align2 always
-    num_rows_ = std::ceil(static_cast<real_type>(dept_ + boundary_size_)/96)*96;
+    num_rows_ = dept_ + boundary_size_;
     num_cols_ = num_features_;
 
         /* feature_ranges_.reserve(devices_.size() + 1);
@@ -514,7 +514,7 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
     for(typename std::vector<queue_type>::size_type cast_i = 0; cast_i < dept_; ++cast_i)
     {
         // d_f[cast_i] = static_cast<float>(d[cast_i]);
-        // Ad_f[cast_i] = static_cast<float>(Ad[cast_i]);
+        Ad_f[cast_i] = static_cast<float>(Ad[cast_i]);
         // x_f[cast_i] = static_cast<float>(x[cast_i]);
     }
 
@@ -542,21 +542,39 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
         // Ad = A * r (q = A * d)
         #pragma omp parallel for
         for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
-            Ad_d[device].memset(0);
-            // Ad_d_test[device].memset(0);
-            // - Ad_d_f[device].memset(0);
-            r_d[device].memset(0, dept_);
-            // - r_d_f[device].memset(0, dept_);
+            #if defined(MIXED)
+                Ad_d_f[device].memset(0);
+                r_d_f[device].memset(0, dept_);
+                run_device_kernel_f(device, q_d_f[device], Ad_d_f[device], r_d_f[device], 1);
+            #endif
+            #if !defined(MIXED)
+                Ad_d[device].memset(0);
+                r_d[device].memset(0, dept_);
+                // run_device_kernel(device, q_d[device], Ad_d[device], r_d[device], 1);
+                run_device_kernel_t(device, q_d[device], Ad_d[device], r_d[device], 1);
+            #endif
+            // TEST ONLY Ad_d_test[device].memset(0);
+
+             
             
-            // - run_device_kernel_f(device, q_d_f[device], Ad_d_f[device], r_d_f[device], 1);
             // run_device_kernel_m(device, q_d_f[device], Ad_d_test[device], r_d_f[device], 1);
             // run_device_kernel_t(device, q_d[device], Ad_d[device], r_d[device], 1);
-            run_device_kernel(device, q_d[device], Ad_d[device], r_d[device], 1);
+            // - run_device_kernel(device, q_d[device], Ad_d[device], r_d[device], 1);
             // run_transformation_kernel_fd(device, range_r, r_d[device], r_d_f[device]);
         }
         // update Ad (q)
-        // - device_reduction_f(Ad_d_f, Ad_f);
-        device_reduction(Ad_d, Ad);
+        #if defined(MIXED)
+            device_reduction_f(Ad_d_f, Ad_f);
+            for(typename std::vector<queue_type>::size_type cast_i = 0; cast_i < dept_; ++cast_i){
+                // d[cast_i] = static_cast<double>(d_f[cast_i]); TEST ONLY!
+                Ad[cast_i] = static_cast<double>(Ad_f[cast_i]);
+                // x[cast_i] = static_cast<double>(x_f[cast_i]); TEST ONLY!
+            }   
+        #endif
+        #if !defined(MIXED)
+            device_reduction(Ad_d, Ad);
+        }
+        #endif
         // device_reduction(Ad_d_test, Ad_test);
 
         
@@ -602,25 +620,21 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
         */
 
 
-        for(typename std::vector<queue_type>::size_type cast_i = 0; cast_i < dept_; ++cast_i)
-        {
-            // d[cast_i] = static_cast<double>(d_f[cast_i]);
-            // - Ad[cast_i] = static_cast<double>(Ad_f[cast_i]);
-            // x[cast_i] = static_cast<double>(x_f[cast_i]);
-        }   
-
 
         // (alpha = delta_new / (d^T * q))
         const real_type alpha_cd = delta / (transposed<double>{ d } * Ad);
 
-        // r -= alpha_cd * Ad (r = r - alpha * q)   
-        std::vector<real_type>r_old(r); // for alternative Polak-Ribiere
+        #if defined(POLAK_RIBIERE)
+            std::vector<real_type>r_old(r); // for alternative Polak-Ribiere
+        #endif
+        
+        // r -= alpha_cd * Ad (r = r - alpha * q)     
         // r -=  alpha_cd * Ad; 
         // (x = x + alpha * d)
         // x += alpha_cd * d;
         
 
-        if (delta < 0.2 * b_res) {  //run % 50 == 49 // 0.1 * b_res 
+        if (delta < 0.01 * b_res && 1 == 0) {  //run % 50 == 49 // 0.1 * b_res 
 
             // (x = x + alpha * d)
             x += alpha_cd * d;
@@ -686,8 +700,14 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
         }
 
         // (beta = delta_new / delta_old) (Fletcher Reeves)  alt. beta = r^T*(r - r_old)/ delta_old (Polak-Ribiere)
-        const real_type beta = transposed<double>{ r} * (r-r_old) / delta_old;
-        //const real_type beta = delta / delta_old;
+        #if defined(POLAK_RIBIERE)
+            const real_type beta = transposed<double>{ r} * (r-r_old) / delta_old;
+        #endif
+        #if !defined(POLAK_RIBIERE)
+            const real_type beta = delta / delta_old;
+        #endif
+        
+        
         // d = beta * d + r // -?
         d = r + beta * d;
 
@@ -695,7 +715,9 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
         #pragma omp parallel for
         for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
             r_d[device].memcpy_to_device(d, 0, dept_);
-            // - run_transformation_kernel_df(device, range_r, r_d_f[device], r_d[device]);
+            #if defined(MIXED)
+                run_transformation_kernel_df(device, range_r, r_d_f[device], r_d[device]); // comment out for non
+            #endif
         }
 
         if (print_info_) {

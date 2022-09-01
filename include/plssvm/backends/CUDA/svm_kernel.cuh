@@ -19,6 +19,8 @@ __global__ void device_kernel_linear_mixed(const float *q, real_type *ret, const
 
 __global__ void device_kernel_linear_t(const real_type *q, real_type *ret, const real_type *d, const real_type *data_d, const real_type QA_cost, const real_type cost, const kernel_index_type num_rows, const kernel_index_type feature_range, const real_type add, const real_type gamma, const kernel_index_type id);
 
+__global__ void device_kernel_radial_t(const real_type *q, real_type *ret, const real_type *d, const real_type *data_d, const real_type QA_cost, const real_type cost, const kernel_index_type num_rows, const kernel_index_type num_cols, const real_type add, const real_type gamma);
+
 
 /**
  * @brief Calculates the C-SVM kernel using the linear kernel function.
