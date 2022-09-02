@@ -93,19 +93,19 @@ __global__ void device_kernel_linear_mixed(const float *q, real_type *ret, const
     }
 }
 
-__global__ void device_kernel_linear_t(const double *q, double *out, const double* vec, const double *in, const double QA_cost, const double cost, const int points, const int feature_range, const double add, const double gamma, const int id) {
+__global__ void device_kernel_linear_t(const double *q, double *out, const double *vec, const double *in, const double QA_cost, const double cost, const int points, const int feature_range, const double add, const double gamma, const int id) {
     const int i = blockIdx.x * BLOCK_SIZE;
     const int j = blockIdx.y * BLOCK_SIZE;
-    if(i >= j){
+    if (i >= j) {
         const int id_1d = threadIdx.y * 32 + threadIdx.x;
         __shared__ ::cuda::barrier<::cuda::thread_scope_block> bar[1];
 
         extern __shared__ double solution[];
-        double *Is= (double*)&solution[0] + BLOCK_SIZE*BLOCK_OFF;
-        double *Js= (double*)&solution[0] + BLOCK_SIZE*BLOCK_OFF + 8 *BLOCK_OFF;
-        double *Vs= (double*)&solution[0] + BLOCK_SIZE*BLOCK_OFF + 16 *BLOCK_OFF;
-        double *Qis= (double*)&solution[0] + BLOCK_SIZE*BLOCK_OFF + 17*BLOCK_OFF;
-        double *Qjs= (double*)&solution[0] + BLOCK_SIZE*BLOCK_OFF + 18*BLOCK_OFF;
+        double *Is = (double *) &solution[0] + BLOCK_SIZE * BLOCK_OFF;
+        double *Js = (double *) &solution[0] + BLOCK_SIZE * BLOCK_OFF + 8 * BLOCK_OFF;
+        double *Vs = (double *) &solution[0] + BLOCK_SIZE * BLOCK_OFF + 16 * BLOCK_OFF;
+        double *Qis = (double *) &solution[0] + BLOCK_SIZE * BLOCK_OFF + 17 * BLOCK_OFF;
+        double *Qjs = (double *) &solution[0] + BLOCK_SIZE * BLOCK_OFF + 18 * BLOCK_OFF;
         if (threadIdx.x == 0 && threadIdx.y == 0) {
             init(&bar[0], THREADS_PER_BLOCK);
             // init(&bar[1], THREADS_PER_BLOCK);
@@ -113,11 +113,12 @@ __global__ void device_kernel_linear_t(const double *q, double *out, const doubl
         }
 
         // reset shared memory
-        /* fill fragement instead - maybe for stab. version
-        for(int set_zero = 0; set_zero < 18; ++set_zero){ //36
+        // fill fragement instead - maybe for stab. version
+        for (int set_zero = 0; set_zero < 18; ++set_zero) {  // 36
             const int index = id_1d + set_zero * THREADS_PER_BLOCK;
-            if(index < 4608) solution[index] = 0.0; //18880
-        }*/
+            if (index < BLOCK_SIZE * BLOCK_OFF)
+                solution[index] = 0.0;  // 18880
+        }
         __syncthreads();
 
         // Build Matrix
@@ -125,49 +126,48 @@ __global__ void device_kernel_linear_t(const double *q, double *out, const doubl
 
         nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, 8, 8, 4, double, nvcuda::wmma::col_major> a_frag;
         nvcuda::wmma::fragment<nvcuda::wmma::matrix_b, 8, 8, 4, double, nvcuda::wmma::row_major> b_frag;
-        nvcuda::wmma::fragment<nvcuda::wmma::accumulator, 8, 8, 4, double> c_frag[ROLL_SIZE]; 
-        for(int frags = 0; frags <ROLL_SIZE; ++frags){
+        nvcuda::wmma::fragment<nvcuda::wmma::accumulator, 8, 8, 4, double> c_frag[ROLL_SIZE];
+        for (int frags = 0; frags < ROLL_SIZE; ++frags) {
             // fill c_frags with zeros
             nvcuda::wmma::fill_fragment(c_frag[frags], 0.0f);
         }
 
         // load Data for first iteration
-        if(threadIdx.y >> 2 == 0){ //threadIdx.y/8 --> warp 0-7
+        if (threadIdx.y >> 2 == 0) {  // threadIdx.y/8 --> warp 0-7
             // two warps per feature line for I
-            double2 *const I2s = reinterpret_cast<double2 *>(&Is[(threadIdx.y)*BLOCK_OFF + threadIdx.x * 2]);
+            double2 *const I2s = reinterpret_cast<double2 *>(&Is[(threadIdx.y) * BLOCK_OFF + threadIdx.x * 2]);
             const double2 *const D_i2 = reinterpret_cast<const double2 *>(&in[(threadIdx.y) * points + threadIdx.x * 2 + i]);
             ::cuda::memcpy_async(I2s, D_i2, sizeof(double2), bar[0]);
-            // printf("Indizes - in %i from %i value: %f \n", (threadIdx.y >> 1)*BLOCK_OFF + (32 *(threadIdx.y & 1) + threadIdx.x) * 2, (threadIdx.y >> 1) * points + (32 * (threadIdx.y & 1) + threadIdx.x) * 2 + i, in[(threadIdx.y >> 1) * points + (32 * (threadIdx.y >> 1) + threadIdx.x) * 2 + i]);     
-        } else{ // warp 8-15
+            // printf("Indizes - in %i from %i value: %f \n", (threadIdx.y >> 1)*BLOCK_OFF + (32 *(threadIdx.y & 1) + threadIdx.x) * 2, (threadIdx.y >> 1) * points + (32 * (threadIdx.y & 1) + threadIdx.x) * 2 + i, in[(threadIdx.y >> 1) * points + (32 * (threadIdx.y >> 1) + threadIdx.x) * 2 + i]);
+        } else {  // warp 8-15
             // two warps per feature line for J
-            double2 *const J2s = reinterpret_cast<double2 *>(&Js[(threadIdx.y - 4)*BLOCK_OFF + threadIdx.x * 2]);
+            double2 *const J2s = reinterpret_cast<double2 *>(&Js[(threadIdx.y - 4) * BLOCK_OFF + threadIdx.x * 2]);
             const double2 *const D_j2 = reinterpret_cast<const double2 *>(&in[(threadIdx.y - 4) * points + threadIdx.x * 2 + j]);
             ::cuda::memcpy_async(J2s, D_j2, sizeof(double2), bar[0]);
         }
 
         // loop over features
-        for(int feature_it = 4; feature_it < feature_range; feature_it = feature_it +4){
-            const int off_plus = (feature_it & 4)*BLOCK_OFF;
+        for (int feature_it = 4; feature_it < feature_range; feature_it = feature_it + 4) {
+            const int off_plus = (feature_it & 4) * BLOCK_OFF;
             const int off_minus = abs(off_plus - 4 * BLOCK_OFF);
 
-            // wait for new I-data to be loaded into shared memory 
+            // wait for new I-data to be loaded into shared memory
             bar[0].arrive_and_wait();
 
-            if(threadIdx.y >> 2 == 0){ //threadIdx.y/8 --> warp 0-7
+            if (threadIdx.y >> 2 == 0) {  // threadIdx.y/4 --> warp 0-4
                 // two warps per feature line for I
-                double2 *const I2s = reinterpret_cast<double2 *>(&Is[threadIdx.y*BLOCK_OFF + threadIdx.x * 2 + off_plus]);
+                double2 *const I2s = reinterpret_cast<double2 *>(&Is[threadIdx.y * BLOCK_OFF + threadIdx.x * 2 + off_plus]);
                 const double2 *const D_i2 = reinterpret_cast<const double2 *>(&in[threadIdx.y * points + threadIdx.x * 2 + feature_it * points + i]);
                 ::cuda::memcpy_async(I2s, D_i2, sizeof(double2), bar[0]);
-                // printf("Indizes - in %i from %i value: %f \n", (threadIdx.y >> 1)*BLOCK_OFF + (32 *(threadIdx.y & 1) + threadIdx.x) * 2, (threadIdx.y >> 1) * points + (32 * (threadIdx.y & 1) + threadIdx.x) * 2 + i, in[(threadIdx.y >> 1) * points + (32 * (threadIdx.y >> 1) + threadIdx.x) * 2 + i]);     
-            } else{ // warp 8-15
+            } else {  // warp 8-15
                 // two warps per feature line for J
-                double2 *const J2s = reinterpret_cast<double2 *>(&Js[(threadIdx.y - 4)*BLOCK_OFF + threadIdx.x * 2 + off_plus]);
+                double2 *const J2s = reinterpret_cast<double2 *>(&Js[(threadIdx.y - 4) * BLOCK_OFF + threadIdx.x * 2 + off_plus]);
                 const double2 *const D_j2 = reinterpret_cast<const double2 *>(&in[(threadIdx.y - 4) * points + threadIdx.x * 2 + feature_it * points + j]);
                 ::cuda::memcpy_async(J2s, D_j2, sizeof(double2), bar[0]);
             }
 
             // load matrix_frag A
-            double *const shmem_i_ptr = (double*)&Is[0] + 8 * threadIdx.y + off_minus;
+            double *const shmem_i_ptr = (double *) &Is[0] + 8 * threadIdx.y + off_minus;
             nvcuda::wmma::load_matrix_sync(a_frag, shmem_i_ptr, BLOCK_OFF);
 #pragma unroll
             for (int j_roll = 0; j_roll < ROLL_SIZE; ++j_roll) {  // first half of tensor operations - full i times half j
@@ -183,10 +183,10 @@ __global__ void device_kernel_linear_t(const double *q, double *out, const doubl
 
         // wait for new I-data to be loaded into shared memory
         bar[0].arrive_and_wait();
-        const int off_last = ((feature_range - 4) & 4)*BLOCK_OFF;
+        const int off_last = ((feature_range - 4) & 4) * BLOCK_OFF;
 
         // load matrix_frag A
-        const double *shmem_i_ptr = (double *)&Is[0] + 8 * threadIdx.y + off_last;
+        const double *shmem_i_ptr = (double *) &Is[0] + 8 * threadIdx.y + off_last;
         nvcuda::wmma::load_matrix_sync(a_frag, shmem_i_ptr, BLOCK_OFF);
 #pragma unroll
         for (int j_roll = 0; j_roll < ROLL_SIZE; ++j_roll) {  // first half of tensor operations - full i times half j
@@ -197,46 +197,43 @@ __global__ void device_kernel_linear_t(const double *q, double *out, const doubl
             nvcuda::wmma::mma_sync(c_frag[j_roll], a_frag, b_frag, c_frag[j_roll]);
         }
 
-        for(int frags = 0; frags <ROLL_SIZE; ++frags){
-            // load solution part acc_frag C from shared
+        // store solution part acc_frag C back in shared
+        for (int frags = 0; frags < ROLL_SIZE; ++frags) {
             double *const shmem_m_ptr = (double *) &solution[0] + 8 * threadIdx.y * BLOCK_OFF + 8 * frags;
-
-            // store solution part acc_frag C back in shared
             nvcuda::wmma::store_matrix_sync(shmem_m_ptr, c_frag[frags], BLOCK_OFF, nvcuda::wmma::mem_row_major);
         }
 
-        // Building Matrix done 
+        // Building Matrix done
         // ---------------------
 
-
         // get vec in shared memory
-        if(threadIdx.y < 1){    
-            ::cuda::memcpy_async(&Vs[2*(id_1d)], &vec[j + 2*id_1d], sizeof(double2), bar[0]);   
+        if (threadIdx.y < 1) {
+            ::cuda::memcpy_async(&Vs[2 * (id_1d)], &vec[j + 2 * id_1d], sizeof(double2), bar[0]);
         }
-        
-        if(id==0){
-            if(threadIdx.y > 0 && threadIdx.y < 2){    
-                ::cuda::memcpy_async(&Qis[2*(id_1d - 32)], &q[i + 2*(id_1d - 32)], sizeof(double2), bar[0]);   
+
+        if (id == 0) {
+            if (threadIdx.y > 0 && threadIdx.y < 2) {
+                ::cuda::memcpy_async(&Qis[2 * (id_1d - 32)], &q[i + 2 * (id_1d - 32)], sizeof(double2), bar[0]);
             }
-            if(threadIdx.y > 1 && threadIdx.y < 3){    
-                ::cuda::memcpy_async(&Qjs[2*(id_1d - 64)], &q[j + 2*(id_1d - 64)], sizeof(double2), bar[0]);   
+            if (threadIdx.y > 1 && threadIdx.y < 3) {
+                ::cuda::memcpy_async(&Qjs[2 * (id_1d - 64)], &q[j + 2 * (id_1d - 64)], sizeof(double2), bar[0]);
             }
 
             bar[0].arrive_and_wait();
 
             // offset - gemv
-            if(threadIdx.y < BLOCK_SIZE/WARP_SIZE){ // 128/32=4 --> Warp 0-3
+            if (threadIdx.y < BLOCK_SIZE / WARP_SIZE) {  // 128/32=4 --> Warp 0-3
                 double sol_tmp = 0.0;
-                // each of the 128 Threads iterate over 1 row in the 128x128 Block. 
-                for(int store_it = 0; store_it < BLOCK_SIZE; ++store_it){
-                    const int index = (id_1d + store_it) & (BLOCK_SIZE - 1); // modulo 128
+                // each of the 128 Threads iterate over 1 row in the 128x128 Block.
+                for (int store_it = 0; store_it < BLOCK_SIZE; ++store_it) {
+                    const int index = (id_1d + store_it) & (BLOCK_SIZE - 1);  // modulo 128
                     const double Qi = Qis[id_1d];
-                    sol_tmp += (solution[id_1d*BLOCK_OFF + index] * gamma - Qi - Qjs[index] + QA_cost)* Vs[index];
+                    sol_tmp += (solution[id_1d * BLOCK_OFF + index] * gamma - Qi - Qjs[index] + QA_cost) * Vs[index];
                     // sol_tmp += solution[id_1d*offset + index] * Vs[index]; // Test!
                     // if(threadIdx.y == 0 && threadIdx.x ==0 && blockIdx.x == 0 && blockIdx.y == 0) printf("Index: %i - Qi: %f - Qj: %f\n", index, Qi, Qjs[index]);
                     // if(threadIdx.y == 0 && threadIdx.x ==0 && blockIdx.x == 0 && blockIdx.y == 0) printf("Index: %i - sol_tmp: %f \n", index, sol_tmp);
                 }
-                if(i==j){
+                if (i == j) {
                     // int index = id_1d * 97; // offset + 1
                     sol_tmp += cost * Vs[id_1d];
                 }
@@ -246,33 +243,33 @@ __global__ void device_kernel_linear_t(const double *q, double *out, const doubl
             __syncthreads();
 
             // upper triangular
-            if(i>j){
-                if(threadIdx.y < 1){    
-                    ::cuda::memcpy_async(&Vs[2*id_1d], &vec[i + 2*id_1d], sizeof(double2), bar[0]);   
+            if (i > j) {
+                if (threadIdx.y < 1) {
+                    ::cuda::memcpy_async(&Vs[2 * id_1d], &vec[i + 2 * id_1d], sizeof(double2), bar[0]);
                 }
                 bar[0].arrive_and_wait();
-                
+
                 // no offset - gemv
-                if(threadIdx.y < BLOCK_SIZE/WARP_SIZE){ // 128/32=4 --> Warp 0-3
+                if (threadIdx.y < BLOCK_SIZE / WARP_SIZE) {  // 128/32=4 --> Warp 0-3
                     double sol_tmp = 0.0;
                     const double Qj = Qjs[id_1d];
-                    for(int store_it = 0; store_it < BLOCK_SIZE; ++store_it){
-                        sol_tmp += (solution[id_1d + store_it * BLOCK_OFF] * gamma - Qj - Qis[store_it] + QA_cost)* Vs[store_it];
+                    for (int store_it = 0; store_it < BLOCK_SIZE; ++store_it) {
+                        sol_tmp += (solution[id_1d + store_it * BLOCK_OFF] * gamma - Qj - Qis[store_it] + QA_cost) * Vs[store_it];
                         // sol_tmp += solution[id_1d + store_it * offset] * Vs[store_it]; // Test!
                         // if(threadIdx.y == 0 && threadIdx.x ==0 && blockIdx.x == 1 && blockIdx.y == 0) printf("Index: %i - Qj: %f - Qis: %f\n", store_it, Qj, Qis[store_it]);
                         // if(threadIdx.y == 0 && threadIdx.x ==0 && blockIdx.x == 0 && blockIdx.y == 1) printf("sol_tmp: %f - sol: %f - Vs %f \n", sol_tmp, solution[id_1d*offset + store_it], Vs[store_it]);
                     }
-                    atomicAdd(&out[j + id_1d], sol_tmp *add);
+                    atomicAdd(&out[j + id_1d], sol_tmp * add);
                 }
             }
         } else {
             bar[0].arrive_and_wait();
-           // offset - gemv
-            if(threadIdx.y < BLOCK_SIZE/WARP_SIZE){
+            // offset - gemv
+            if (threadIdx.y < BLOCK_SIZE / WARP_SIZE) {
                 double sol_tmp = 0.0;
-                for(int store_it = 0; store_it < BLOCK_SIZE; ++store_it){
+                for (int store_it = 0; store_it < BLOCK_SIZE; ++store_it) {
                     const int index = (id_1d + store_it) & (BLOCK_SIZE - 1);
-                    sol_tmp += solution[id_1d*BLOCK_OFF + index] * gamma * Vs[index];
+                    sol_tmp += solution[id_1d * BLOCK_OFF + index] * gamma * Vs[index];
                     // if(threadIdx.y == 0 && threadIdx.x ==0 && blockIdx.x == 0 && blockIdx.y == 1) printf("sol_tmp: %f - sol: %f - Vs %f \n", sol_tmp, solution[id_1d*offset + store_it], Vs[store_it]);
                 }
                 atomicAdd(&out[i + id_1d], sol_tmp * add);
@@ -281,20 +278,251 @@ __global__ void device_kernel_linear_t(const double *q, double *out, const doubl
             __syncthreads();
 
             // upper triangular
-            if(i>j){
-                if(threadIdx.y < 1){    
-                    ::cuda::memcpy_async(&Vs[2*id_1d], &vec[i + 2*id_1d], sizeof(double2), bar[0]);   
+            if (i > j) {
+                if (threadIdx.y < 1) {
+                    ::cuda::memcpy_async(&Vs[2 * id_1d], &vec[i + 2 * id_1d], sizeof(double2), bar[0]);
                 }
                 bar[0].arrive_and_wait();
-                
+
                 // no offset - gemv
-                if(threadIdx.y < BLOCK_SIZE/WARP_SIZE){
+                if (threadIdx.y < BLOCK_SIZE / WARP_SIZE) {
                     double sol_tmp = 0.0;
-                    for(int store_it = 0; store_it < BLOCK_SIZE; ++store_it){
+                    for (int store_it = 0; store_it < BLOCK_SIZE; ++store_it) {
                         sol_tmp += solution[id_1d + store_it * BLOCK_OFF] * gamma * Vs[store_it];
                         // if(threadIdx.y == 0 && threadIdx.x ==0 && blockIdx.x == 0 && blockIdx.y == 1) printf("sol_tmp: %f - sol: %f - Vs %f \n", sol_tmp, solution[id_1d*offset + store_it], Vs[store_it]);
                     }
-                    atomicAdd(&out[j + id_1d], sol_tmp *add);
+                    atomicAdd(&out[j + id_1d], sol_tmp * add);
+                }
+            }
+        }
+    }
+}
+
+__global__ void device_kernel_linear_tf(const float *q, float *out, const float *vec, const float *in, const float QA_cost, const float cost, const int points, const int feature_range, const float add, const float gamma, const int id) {
+    const int i = blockIdx.x * BLOCK_SIZE_F;
+    const int j = blockIdx.y * BLOCK_SIZE_F;
+    if (i >= j) {
+        const int id_1d = threadIdx.y * 32 + threadIdx.x;
+        __shared__ ::cuda::barrier<::cuda::thread_scope_block> bar[2];
+
+        extern __shared__ float solution_f[];
+        float *Is = (float *) &solution_f[0] + BLOCK_SIZE_F * BLOCK_OFF_F;
+        float *Js = (float *) &solution_f[0] + BLOCK_SIZE_F * BLOCK_OFF_F + 16 * BLOCK_OFF_F;
+        float *Vs = (float *) &solution_f[0] + BLOCK_SIZE_F * BLOCK_OFF_F + 32 * BLOCK_OFF_F;
+        float *Qis = (float *) &solution_f[0] + BLOCK_SIZE_F * BLOCK_OFF_F + 33 * BLOCK_OFF_F;
+        float *Qjs = (float *) &solution_f[0] + BLOCK_SIZE_F * BLOCK_OFF_F + 34 * BLOCK_OFF_F;
+        if (threadIdx.x == 0 && threadIdx.y == 0) {
+            init(&bar[0], THREADS_PER_BLOCK);
+            init(&bar[1], THREADS_PER_BLOCK);
+            // init(&bar[1], THREADS_PER_BLOCK);
+            // init(&bar[2], THREADS_PER_BLOCK);
+        }
+
+        // reset shared memory
+        // fill fragement instead - maybe for stab. version
+        // for (int set_zero = 0; set_zero < 68; ++set_zero) {  // 36
+        //     const int index = id_1d + set_zero * THREADS_PER_BLOCK;
+        //     if (index < BLOCK_SIZE_F * BLOCK_OFF_F)
+        //         solution_f[index] = 0.0;
+        // }
+        __syncthreads();
+
+        // Build Matrix
+        // ---------------------
+
+        nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, 16, 16, 8, nvcuda::wmma::precision::tf32, nvcuda::wmma::col_major> a_frag;
+        nvcuda::wmma::fragment<nvcuda::wmma::matrix_b, 16, 16, 8, nvcuda::wmma::precision::tf32, nvcuda::wmma::row_major> b_frag;
+        nvcuda::wmma::fragment<nvcuda::wmma::accumulator, 16, 16, 8, float> c_frag[ROLL_SIZE];
+        for (int frags = 0; frags < ROLL_SIZE; ++frags) {
+            // fill c_frags with zeros
+            nvcuda::wmma::fill_fragment(c_frag[frags], 0.0f);
+        }
+
+        // load Data for first iteration
+
+        // Each warp one line for I
+        float4 *const I2s = reinterpret_cast<float4 *>(&Is[threadIdx.y * BLOCK_OFF_F + threadIdx.x * 4]);
+        const float4 *const D_i2 = reinterpret_cast<const float4 *>(&in[threadIdx.y * points + threadIdx.x * 4 + i]);
+        ::cuda::memcpy_async(I2s, D_i2, sizeof(float4), bar[0]);
+
+        // Each warp one line for J
+        float4 *const J2s = reinterpret_cast<float4 *>(&Js[threadIdx.y * BLOCK_OFF_F + threadIdx.x * 4]);
+        const float4 *const D_j2 = reinterpret_cast<const float4 *>(&in[threadIdx.y * points + threadIdx.x * 4 + j]);
+        ::cuda::memcpy_async(J2s, D_j2, sizeof(float4), bar[1]);
+
+        // loop over features
+        for (int feature_it = 8; feature_it < feature_range; feature_it = feature_it + 8) {
+            const int off_plus = (feature_it & 8) * BLOCK_OFF_F;
+            const int off_minus = abs(off_plus - 8 * BLOCK_OFF_F);
+
+            // wait for new I-data to be loaded into shared memory
+            bar[0].arrive_and_wait();
+
+            // 1 warp per feature line for I
+            float4 *const I2s = reinterpret_cast<float4 *>(&Is[threadIdx.y * BLOCK_OFF_F + threadIdx.x * 4 + off_plus]);
+            const float4 *const D_i2 = reinterpret_cast<const float4 *>(&in[threadIdx.y * points + threadIdx.x * 4 + feature_it * points + i]);
+            ::cuda::memcpy_async(I2s, D_i2, sizeof(float4), bar[0]);
+
+            // load matrix_frag A
+            float *const shmem_i_ptr = (float *) &Is[0] + 16 * threadIdx.y + off_minus;
+            nvcuda::wmma::load_matrix_sync(a_frag, shmem_i_ptr, BLOCK_OFF_F);
+
+            // Transform to tf32
+#pragma unroll
+            for (int t = 0; t < a_frag.num_elements; ++t) {
+                a_frag.x[t] = nvcuda::wmma::__float_to_tf32(a_frag.x[t]);
+            }
+
+            bar[1].arrive_and_wait();
+
+            // 1 warp per feature line for J
+            float4 *const J2s = reinterpret_cast<float4 *>(&Js[threadIdx.y * BLOCK_OFF_F + threadIdx.x * 4 + off_plus]);
+            const float4 *const D_j2 = reinterpret_cast<const float4 *>(&in[threadIdx.y * points + threadIdx.x * 4 + feature_it * points + j]);
+            ::cuda::memcpy_async(J2s, D_j2, sizeof(float4), bar[1]);
+
+#pragma unroll
+            for (int j_roll = 0; j_roll < ROLL_SIZE; ++j_roll) {  // first half of tensor operations - full i times half j
+                float *const shmem_j_ptr = (float *) &Js[0] + 16 * j_roll + off_minus;
+                nvcuda::wmma::load_matrix_sync(b_frag, shmem_j_ptr, BLOCK_OFF_F);
+
+                // Transform b_frag to tf32
+#pragma unroll
+                for (int t = 0; t < b_frag.num_elements; ++t) {
+                    b_frag.x[t] = nvcuda::wmma::__float_to_tf32(b_frag.x[t]);
+                }
+
+                // tensorcore operation, C += A*B
+                nvcuda::wmma::mma_sync(c_frag[j_roll], a_frag, b_frag, c_frag[j_roll]);
+                // store solution part acc_frag C back in shared
+                // nvcuda::wmma::store_matrix_sync(shmem_m_ptr , c_frag[frags], BLOCK_OFF, nvcuda::wmma::mem_row_major);
+            }
+        }
+
+        // wait for new I-data to be loaded into shared memory
+        bar[0].arrive_and_wait();
+        const int off_last = ((feature_range - 8) & 8) * BLOCK_OFF_F;
+
+        // load matrix_frag A
+        const float *shmem_i_ptr = (float *) &Is[0] + 16 * threadIdx.y + off_last;
+        nvcuda::wmma::load_matrix_sync(a_frag, shmem_i_ptr, BLOCK_OFF_F);
+
+        // Transform to tf32
+#pragma unroll
+        for (int t = 0; t < a_frag.num_elements; ++t) {
+            a_frag.x[t] = nvcuda::wmma::__float_to_tf32(a_frag.x[t]);
+        }
+        bar[1].arrive_and_wait();
+
+#pragma unroll
+        for (int j_roll = 0; j_roll < ROLL_SIZE; ++j_roll) {  // first half of tensor operations - full i times half j
+            float *const shmem_j_ptr = (float *) &Js[0] + 16 * j_roll + off_last;
+            nvcuda::wmma::load_matrix_sync(b_frag, shmem_j_ptr, BLOCK_OFF_F);
+
+            // Transform b_frag to tf32
+#pragma unroll
+            for (int t = 0; t < b_frag.num_elements; ++t) {
+                b_frag.x[t] = nvcuda::wmma::__float_to_tf32(b_frag.x[t]);
+            }
+
+            // tensorcore operation, C += A*B
+            nvcuda::wmma::mma_sync(c_frag[j_roll], a_frag, b_frag, c_frag[j_roll]);
+        }
+
+        // store solution part acc_frag C back in shared
+        for (int frags = 0; frags < ROLL_SIZE; ++frags) {
+            float *const shmem_m_ptr = (float *) &solution_f[0] + 16 * threadIdx.y * BLOCK_OFF_F + 16 * frags;
+            nvcuda::wmma::store_matrix_sync(shmem_m_ptr, c_frag[frags], BLOCK_OFF_F, nvcuda::wmma::mem_row_major);
+        }
+
+        // Building Matrix done
+        // ---------------------
+
+        // get vec in shared memory
+        if (threadIdx.y < 1) {
+            ::cuda::memcpy_async(&Vs[4 * id_1d], &vec[j + 4 * id_1d], sizeof(float4), bar[0]);
+        }
+
+        if (id == 0) {
+            if (threadIdx.y > 0 && threadIdx.y < 2) {
+                ::cuda::memcpy_async(&Qis[4 * (id_1d - 32)], &q[i + 4 * (id_1d - 32)], sizeof(float4), bar[0]);
+            }
+            if (threadIdx.y > 1 && threadIdx.y < 3) {
+                ::cuda::memcpy_async(&Qjs[4 * (id_1d - 64)], &q[j + 4 * (id_1d - 64)], sizeof(float4), bar[0]);
+            }
+
+            bar[0].arrive_and_wait();
+
+            // offset - gemv
+            if (threadIdx.y < BLOCK_SIZE_F / WARP_SIZE) {  // 128/32=4 --> Warp 0-3
+                float sol_tmp = 0.0;
+                // each of the 128 Threads iterate over 1 row in the 128x128 Block.
+                for (int store_it = 0; store_it < BLOCK_SIZE_F; ++store_it) {
+                    const int index = (id_1d + store_it) & (BLOCK_SIZE_F - 1);  // modulo 128
+                    const float Qi = Qis[id_1d];
+                    sol_tmp += (solution_f[id_1d * BLOCK_OFF_F + index] * gamma - Qi - Qjs[index] + QA_cost) * Vs[index];
+                    // sol_tmp += solution[id_1d*offset + index] * Vs[index]; // Test!
+                    // if(threadIdx.y == 0 && threadIdx.x ==0 && blockIdx.x == 0 && blockIdx.y == 0) printf("Index: %i - Qi: %f - Qj: %f\n", index, Qi, Qjs[index]);
+                    // if(threadIdx.y == 0 && threadIdx.x ==0 && blockIdx.x == 0 && blockIdx.y == 0) printf("Index: %i - sol_tmp: %f \n", index, sol_tmp);
+                }
+                if (i == j) {
+                    // int index = id_1d * 97; // offset + 1
+                    sol_tmp += cost * Vs[id_1d];
+                }
+                atomicAdd(&out[i + id_1d], sol_tmp * add);
+            }
+
+            __syncthreads();
+
+            // upper triangular
+            if (i > j) {
+                if (threadIdx.y < 1) {
+                    ::cuda::memcpy_async(&Vs[4 * id_1d], &vec[i + 4 * id_1d], sizeof(float4), bar[0]);
+                }
+                bar[0].arrive_and_wait();
+
+                // no offset - gemv
+                if (threadIdx.y < BLOCK_SIZE_F / WARP_SIZE) {  // 128/32=4 --> Warp 0-3
+                    float sol_tmp = 0.0;
+                    const float Qj = Qjs[id_1d];
+                    for (int store_it = 0; store_it < BLOCK_SIZE_F; ++store_it) {
+                        sol_tmp += (solution_f[id_1d + store_it * BLOCK_OFF_F] * gamma - Qj - Qis[store_it] + QA_cost) * Vs[store_it];
+                        // sol_tmp += solution[id_1d + store_it * offset] * Vs[store_it]; // Test!
+                        // if(threadIdx.y == 0 && threadIdx.x ==0 && blockIdx.x == 1 && blockIdx.y == 0) printf("Index: %i - Qj: %f - Qis: %f\n", store_it, Qj, Qis[store_it]);
+                        // if(threadIdx.y == 0 && threadIdx.x ==0 && blockIdx.x == 0 && blockIdx.y == 1) printf("sol_tmp: %f - sol: %f - Vs %f \n", sol_tmp, solution[id_1d*offset + store_it], Vs[store_it]);
+                    }
+                    atomicAdd(&out[j + id_1d], sol_tmp * add);
+                }
+            }
+        } else {
+            bar[0].arrive_and_wait();
+            // offset - gemv
+            if (threadIdx.y < BLOCK_SIZE_F / WARP_SIZE) {
+                float sol_tmp = 0.0;
+                for (int store_it = 0; store_it < BLOCK_SIZE_F; ++store_it) {
+                    const int index = (id_1d + store_it) & (BLOCK_SIZE_F - 1);
+                    sol_tmp += solution_f[id_1d * BLOCK_OFF_F + index] * gamma * Vs[index];
+                    // if(threadIdx.y == 0 && threadIdx.x ==0 && blockIdx.x == 0 && blockIdx.y == 1) printf("sol_tmp: %f - sol: %f - Vs %f \n", sol_tmp, solution[id_1d*offset + store_it], Vs[store_it]);
+                }
+                atomicAdd(&out[i + id_1d], sol_tmp * add);
+            }
+
+            __syncthreads();
+
+            // upper triangular
+            if (i > j) {
+                if (threadIdx.y < 1) {
+                    ::cuda::memcpy_async(&Vs[4 * id_1d], &vec[i + 4 * id_1d], sizeof(float4), bar[0]);
+                }
+                bar[0].arrive_and_wait();
+
+                // no offset - gemv
+                if (threadIdx.y < BLOCK_SIZE_F / WARP_SIZE) {
+                    float sol_tmp = 0.0;
+                    for (int store_it = 0; store_it < BLOCK_SIZE_F; ++store_it) {
+                        sol_tmp += solution_f[id_1d + store_it * BLOCK_OFF_F] * gamma * Vs[store_it];
+                        // if(threadIdx.y == 0 && threadIdx.x ==0 && blockIdx.x == 0 && blockIdx.y == 1) printf("sol_tmp: %f - sol: %f - Vs %f \n", sol_tmp, solution[id_1d*offset + store_it], Vs[store_it]);
+                    }
+                    atomicAdd(&out[j + id_1d], sol_tmp * add);
                 }
             }
         }

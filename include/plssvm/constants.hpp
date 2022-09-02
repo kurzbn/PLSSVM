@@ -47,6 +47,9 @@ constexpr kernel_index_type OPENMP_BLOCK_SIZE = 64;
 #define ROLL_SIZE 8 // 16
 #define ROLL_SIZE_HALF 8
 
+#define BLOCK_SIZE_F 128
+#define BLOCK_OFF_F 136
+
 #define MIXED 0
 #define POLAK_RIBIERE 0
 

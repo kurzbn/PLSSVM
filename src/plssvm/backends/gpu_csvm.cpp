@@ -417,7 +417,7 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
     real_type b_res = transposed<double>{ b } * b;
 
     std::vector<real_type> y(dept_, 0.0);
-    std::vector<real_type> x(dept_, 1.0);
+    std::vector<real_type> x(dept_, 1.0/(num_features_ * dept_));
     std::vector<float> x_f(dept_, 1.0);
     std::vector<device_ptr_type> x_d(devices_.size());
     std::vector<device_ptr_type_float> x_d_f(devices_.size());
@@ -465,8 +465,7 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
         run_transformation_kernel_df(device, range_r, q_d_f[device], q_d[device]);
         
         // r = Ax (r = b - Ax)
-        // run_device_kernel_t(device, q_d[device], r_d[device], x_d[device], -1);
-        run_device_kernel(device, q_d[device], r_d[device], x_d[device], -1);
+        run_device_kernel_t(device, q_d[device], r_d[device], x_d[device], -1);
     }
     device_reduction(r_d, r);
 
@@ -476,18 +475,21 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
     real_type delta_old = delta;
 
     std::vector<real_type> Ad(dept_);
-    std::vector<real_type> Ad_test(dept_);
-    std::vector<float> Ad_f(dept_);
+    //std::vector<real_type> Ad_test(dept_);
+    #if defined(MIXED)
+        std::vector<float> Ad_f(dept_);
+    #endif
 
     std::vector<device_ptr_type> Ad_d(devices_.size());
     std::vector<device_ptr_type> Ad_d_test(devices_.size());
     std::vector<device_ptr_type_float> Ad_d_f(devices_.size());
     for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
         Ad_d[device] = device_ptr_type{ dept_ + boundary_size_, devices_[device] };
-        Ad_d_test[device] = device_ptr_type{ dept_ + boundary_size_, devices_[device] };
-        Ad_d_f[device] = device_ptr_type_float{ dept_ + boundary_size_, devices_[device] };
-
-        run_transformation_kernel_df(device, range_r, r_d_f[device], r_d[device]);
+        // Ad_d_test[device] = device_ptr_type{ dept_ + boundary_size_, devices_[device] };
+        #if defined(MIXED)
+            Ad_d_f[device] = device_ptr_type_float{ dept_ + boundary_size_, devices_[device] };
+            run_transformation_kernel_df(device, range_r, r_d_f[device], r_d[device]);
+        #endif
     }
 
     std::vector<real_type> d(r);
@@ -510,13 +512,14 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
 
     // std::vector<float> d_f(dept_);
     
-    
-    for(typename std::vector<queue_type>::size_type cast_i = 0; cast_i < dept_; ++cast_i)
-    {
-        // d_f[cast_i] = static_cast<float>(d[cast_i]);
-        Ad_f[cast_i] = static_cast<float>(Ad[cast_i]);
-        // x_f[cast_i] = static_cast<float>(x[cast_i]);
-    }
+    #if defined(MIXED)
+        for(typename std::vector<queue_type>::size_type cast_i = 0; cast_i < dept_; ++cast_i)
+        {
+            // d_f[cast_i] = static_cast<float>(d[cast_i]);
+            Ad_f[cast_i] = static_cast<float>(Ad[cast_i]);
+            // x_f[cast_i] = static_cast<float>(x[cast_i]);
+        }
+    #endif
 
     // timing for each CG iteration
     std::chrono::milliseconds average_iteration_time{};
@@ -545,12 +548,11 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
             #if defined(MIXED)
                 Ad_d_f[device].memset(0);
                 r_d_f[device].memset(0, dept_);
-                run_device_kernel_f(device, q_d_f[device], Ad_d_f[device], r_d_f[device], 1);
+                run_device_kernel_tf(device, q_d_f[device], Ad_d_f[device], r_d_f[device], 1);
             #endif
             #if !defined(MIXED)
                 Ad_d[device].memset(0);
                 r_d[device].memset(0, dept_);
-                // run_device_kernel(device, q_d[device], Ad_d[device], r_d[device], 1);
                 run_device_kernel_t(device, q_d[device], Ad_d[device], r_d[device], 1);
             #endif
             // TEST ONLY Ad_d_test[device].memset(0);
@@ -569,11 +571,10 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
                 // d[cast_i] = static_cast<double>(d_f[cast_i]); TEST ONLY!
                 Ad[cast_i] = static_cast<double>(Ad_f[cast_i]);
                 // x[cast_i] = static_cast<double>(x_f[cast_i]); TEST ONLY!
-            }   
-        #endif
+            } 
+        #endif  
         #if !defined(MIXED)
             device_reduction(Ad_d, Ad);
-        }
         #endif
         // device_reduction(Ad_d_test, Ad_test);
 
@@ -665,7 +666,7 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
                 }
 
                 // r -= A * x
-                run_device_kernel(device, q_d[device], r_d[device], x_d[device], -1);
+                run_device_kernel_t(device, q_d[device], r_d[device], x_d[device], -1);
                 // run_device_kernel_f(device, q_d_f[device], r_d_f[device], x_d_f[device], -1);
             }
             // run_transformation_kernel_fd(0, range_r, r_d[0], r_d_f[0]);
@@ -733,6 +734,10 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
                    average_iteration_time / std::min(run + 1, imax));
     }
     y+= x;
+
+    /*fmt::print("Solutionvec:\n");
+    for(int i = 0; i < 128; ++i) fmt::print("{}\n", y[i]);*/
+
     return std::vector<real_type>(y.begin(), y.begin() + dept_);
 }
 
@@ -795,6 +800,18 @@ void gpu_csvm::run_device_kernel_f(const std::size_t device, const device_ptr_ty
     const detail::execution_range range({ grid, grid }, { THREAD_BLOCK_SIZE, THREAD_BLOCK_SIZE });
 
     run_svm_kernel_f(device, range, q_d, r_d, x_d, add, feature_ranges_[device + 1] - feature_ranges_[device]);
+}
+
+void gpu_csvm::run_device_kernel_tf(const std::size_t device, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, const float add) {
+    PLSSVM_ASSERT(dept_ != 0, "dept_ not initialized! Maybe a call to setup_data_on_device() is missing?");
+    PLSSVM_ASSERT(boundary_size_ != 0, "boundary_size_ not initialized! Maybe a call to setup_data_on_device() is missing?");
+    PLSSVM_ASSERT(num_rows_ != 0, "num_rows_ not initialized! Maybe a call to setup_data_on_device() is missing?");
+    PLSSVM_ASSERT(num_cols_ != 0, "num_cols_ not initialized! Maybe a call to setup_data_on_device() is missing?");
+
+    const auto grid = static_cast<std::size_t>(std::ceil(static_cast<real_type>(dept_) / static_cast<real_type>(boundary_size_)));
+    const detail::execution_range range({ grid, grid }, { THREAD_BLOCK_SIZE, THREAD_BLOCK_SIZE });
+
+    run_svm_kernel_tf(device, range, q_d, r_d, x_d, add, feature_ranges_[device + 1] - feature_ranges_[device]);
 }
 
 void gpu_csvm::run_device_kernel_m(const std::size_t device, const device_ptr_type_float &q_d, device_ptr_type &r_d, const device_ptr_type_float &x_d, const float add) {

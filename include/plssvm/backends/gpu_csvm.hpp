@@ -117,6 +117,7 @@ class gpu_csvm : public csvm {
      */
     void run_device_kernel(std::size_t device, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add);
     void run_device_kernel_t(std::size_t device, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add);
+    void run_device_kernel_tf(std::size_t device, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add);
     void run_device_kernel_f(std::size_t device, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add);
     void run_device_kernel_m(std::size_t device, const device_ptr_type_float &q_d, device_ptr_type &r_d, const device_ptr_type_float &x_d, float add);
     /**
@@ -156,6 +157,7 @@ class gpu_csvm : public csvm {
     virtual void run_svm_kernel(std::size_t device, const detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add, std::size_t num_features) = 0;
     virtual void run_svm_kernel_t(std::size_t device, const detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add, std::size_t num_features) = 0;
     virtual void run_svm_kernel_f(std::size_t device, const detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add, std::size_t num_features) = 0;
+    virtual void run_svm_kernel_tf(std::size_t device, const detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add, std::size_t num_features) = 0;
     virtual void run_svm_kernel_m(std::size_t device, const detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type &r_d, const device_ptr_type_float &x_d, float add, std::size_t num_features) = 0;
     /**
      * @brief Run the GPU kernel (only on the first GPU) the calculate the `w` vector used to speed up the prediction when using the linear kernel function.
