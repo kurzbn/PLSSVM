@@ -39,12 +39,16 @@ template <typename T>
 void device_ptr<T>::memset(const int value, const size_type pos, const size_type count) {
     PLSSVM_ASSERT(data_ != nullptr, "Invalid data pointer!");
 
-    if (pos >= size_) {
+    if (pos > size_) {
         throw backend_exception{ fmt::format("Illegal access in memset!: {} >= {}", pos, size_) };
+    } else if (pos == size_)
+    {
+        return;
+    } else{
+        PLSSVM_CUDA_ERROR_CHECK(cudaSetDevice(queue_));
+        const size_type rcount = std::min(count, size_ - pos);
+        PLSSVM_CUDA_ERROR_CHECK(cudaMemset(data_ + pos, value, rcount * sizeof(value_type)));
     }
-    PLSSVM_CUDA_ERROR_CHECK(cudaSetDevice(queue_));
-    const size_type rcount = std::min(count, size_ - pos);
-    PLSSVM_CUDA_ERROR_CHECK(cudaMemset(data_ + pos, value, rcount * sizeof(value_type)));
 }
 
 template <typename T>

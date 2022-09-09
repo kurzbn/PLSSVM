@@ -15,13 +15,9 @@
 
 namespace plssvm::cuda {
 
-__global__ void device_kernel_linear_mixed(const float *q, real_type *ret, const float *d, const float *data_d, const float QA_cost, const float cost, const kernel_index_type num_rows, const kernel_index_type feature_range, const float add, const kernel_index_type id);
-
 __global__ void device_kernel_linear_t(const real_type *q, real_type *ret, const real_type *d, const real_type *data_d, const real_type QA_cost, const real_type cost, const kernel_index_type num_rows, const kernel_index_type feature_range, const real_type add, const real_type gamma, const kernel_index_type id);
 
 __global__ void device_kernel_linear_tf(const float *q, float *ret, const float *d, const float *data_d, const float QA_cost, const float cost, const kernel_index_type num_rows, const kernel_index_type feature_range, const float add, const float gamma, const kernel_index_type id);
-
-__global__ void device_kernel_radial_t(const real_type *q, real_type *ret, const real_type *d, const real_type *data_d, const real_type QA_cost, const real_type cost, const kernel_index_type num_rows, const kernel_index_type num_cols, const real_type add, const real_type gamma);
 
 
 /**
@@ -61,6 +57,8 @@ __global__ void device_kernel_linear(const real_type *q, real_type *ret, const r
  */
 template <typename real_type>
 __global__ void device_kernel_poly(const real_type *q, real_type *ret, const real_type *d, const real_type *data_d, const real_type QA_cost, const real_type cost, const kernel_index_type num_rows, const kernel_index_type num_cols, const real_type add, const int degree, const real_type gamma, const real_type coef0);
+
+__global__ void device_kernel_poly_t(const double *q, double *out, const double *vec, const double *in, const double QA_cost, const double cost, const int points, const int feature_range, const double add, const int degree, const double gamma, const real_type coef0);
 
 /**
  * @brief Calculates the C-SVM kernel using the radial basis function kernel function.

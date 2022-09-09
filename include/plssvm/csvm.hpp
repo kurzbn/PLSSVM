@@ -187,6 +187,11 @@ class csvm {
      * @brief Generate the vector `q`, a subvector of the least-squares matrix equation.
      * @return the generated `q` vector (`[[nodiscard]]`)
      */
+    [[nodiscard]] virtual std::vector<float> generate_q_f() = 0;
+    /**
+     * @brief Generate the vector `q`, a subvector of the least-squares matrix equation.
+     * @return the generated `q` vector (`[[nodiscard]]`)
+     */
     [[nodiscard]] virtual std::vector<real_type> generate_q() = 0;
     /**
      * @brief Solves the equation \f$Ax = b\f$ using the Conjugated Gradients algorithm.
@@ -230,7 +235,7 @@ class csvm {
      * @attention Boundary values can contain random numbers!
      * @return an 1D vector in a SoA layout (`[[nodiscard]]`)
      */
-    [[nodiscard]] std::vector<real_type> transform_data(const std::vector<std::vector<real_type>> &matrix, std::size_t boundary, std::size_t num_points);
+    [[nodiscard]] std::vector<real_type> transform_data(const std::vector<std::vector<real_type>> &matrix, std::size_t boundary, std::size_t num_points, std::size_t boundary_features = 0);
 
     //*************************************************************************************************************************************//
     //                                              parameter initialized by the constructor                                               //
@@ -246,6 +251,7 @@ class csvm {
     float gamma_f_;
     /// The coef0 parameter used in the polynomial kernel function.
     const real_type coef0_;
+    const float coef0_f_;
     /// The cost parameter in the C-SVM.
     real_type cost_;
     float cost_f_;

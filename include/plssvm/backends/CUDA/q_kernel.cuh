@@ -29,6 +29,18 @@ template <typename real_type>
 __global__ void device_kernel_q_linear(real_type *q, const real_type *data_d, const real_type *data_last, const kernel_index_type num_rows, const kernel_index_type feature_range, const real_type gamma);
 
 /**
+ * @brief Calculates the `q` vector using the linear C-SVM kernel.
+ * @details Supports multi-GPU execution.
+ * @tparam float the type of the data
+ * @param[out] q_f the calculated `q` vector
+ * @param[in] data_d_f the one-dimensional data matrix
+ * @param[in] data_last_f the last row in the data matrix
+ * @param[in] num_rows the number of rows in the data matrix
+ * @param[in] feature_range number of features used for the calculation
+ */
+__global__ void device_kernel_q_linear_f(float *q_f, const float *data_d_f, const float *data_last_f, const kernel_index_type num_rows, const kernel_index_type feature_range, const float gamma_f);
+
+/**
  * @brief Calculates the `q` vector using the polynomial C-SVM kernel.
  * @details Currently only single GPU execution is supported.
  * @tparam real_type the type of the data
@@ -45,6 +57,22 @@ template <typename real_type>
 __global__ void device_kernel_q_poly(real_type *q, const real_type *data_d, const real_type *data_last, const kernel_index_type num_rows, const kernel_index_type num_cols, const int degree, const real_type gamma, const real_type coef0);
 
 /**
+ * @brief Calculates the `q` vector using the polynomial C-SVM kernel.
+ * @details Currently only single GPU execution is supported.
+ * @tparam float the type of the data
+ * @param[out] q_f the calculated `q` vector
+ * @param[in] data_d_f the one-dimensional data matrix
+ * @param[in] data_last_f the last row in the data matrix
+ * @param[in] num_rows the number of rows in the data matrix
+ * @param[in] num_cols the number of columns in the data matrix
+ * @param[in] degree_f the degree parameter used in the polynomial kernel function
+ * @param[in] gamma_f the gamma parameter used in the polynomial kernel function
+ * @param[in] coef0_f the coef0 parameter used in the polynomial kernel function
+ */
+__global__ void device_kernel_q_poly_f(float *q_f, const float *data_d_f, const float *data_last_f, const kernel_index_type num_rows, const kernel_index_type num_cols, const int degree, const float gamma_f, const float coef0_f);
+
+
+/**
  * @brief Calculates the `q` vector using the radial basis functions C-SVM kernel.
  * @details Currently only single GPU execution is supported.
  * @tparam real_type the type of the data
@@ -57,5 +85,19 @@ __global__ void device_kernel_q_poly(real_type *q, const real_type *data_d, cons
  */
 template <typename real_type>
 __global__ void device_kernel_q_radial(real_type *q, const real_type *data_d, const real_type *data_last, const kernel_index_type num_rows, const kernel_index_type num_cols, const real_type gamma);
+
+/**
+ * @brief Calculates the `q` vector using the radial basis functions C-SVM kernel.
+ * @details Currently only single GPU execution is supported.
+ * @tparam float the type of the data
+ * @param[out] q the calculated `q` vector
+ * @param[in] data_d the one-dimensional data matrix
+ * @param[in] data_last the last row in the data matrix
+ * @param[in] num_rows the number of rows in the data matrix
+ * @param[in] num_cols the number of columns in the data matrix
+ * @param[in] gamma the gamma parameter used in the rbf kernel function
+ */
+__global__ void device_kernel_q_radial_f(float *q_f, const float *data_d_f, const float *data_last_f, const kernel_index_type num_rows, const kernel_index_type num_cols, const float gamma_f);
+
 
 }  // namespace plssvm::cuda

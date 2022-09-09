@@ -132,118 +132,194 @@ auto gpu_csvm::predict(const std::vector<std::vector<real_type>> &points) -> std
     return out;
 }
 
-
 void gpu_csvm::setup_data_on_device() {
     // set values of member variables
     dept_ = num_data_points_ - 1;
-    boundary_size_ = static_cast<std::size_t>(THREAD_BLOCK_SIZE * INTERNAL_BLOCK_SIZE); // static_cast<std::size_t>(THREAD_BLOCK_SIZE * INTERNAL_BLOCK_SIZE); // 64 // ToDo align2 always
-    num_rows_ = dept_ + boundary_size_;
-    num_cols_ = num_features_;
-
-        /* feature_ranges_.reserve(devices_.size() + 1);
-        for (typename std::vector<queue_type>::size_type device = 0; device <= devices_.size(); ++device) {
-            feature_ranges_.push_back(device * num_rows_ / devices_.size());
+    // mixed precision PLSSVM with Tensor Cores
+    #if defined(MIXED) && defined (TENSOR)
+        if(dept_ % BLOCK_SIZE_F == 0){
+            boundary_size_ = 0;
+        } else{
+            boundary_size_ = BLOCK_SIZE_F - (dept_ % BLOCK_SIZE_F);
         }
-        std::vector<double> fullMatrix((dept_ + boundary_size_) * (dept_ + boundary_size_), 0.0);
-        for(int i = 0; i < num_rows_; ++i){
-            for(int j = 0; j < num_rows_; ++j){
-                double sum = 0.0;
-                for(int k = 0; k < num_features_; ++k){
-                    sum += (*data_ptr_)[i][k]*(*data_ptr_)[j][k];
-                }
-                if (i == j){
-                    fullMatrix[i * num_rows_ + j] = sum - q[i] - q[j] + QA_cost_ + cost_;
-                } else {
-                    fullMatrix[i * num_rows_ + j] = sum - q[i] - q[j] + QA_cost_;
-                }
+        if(num_features_ % (8 * devices_.size()) == 0){
+            boundary_size_features_tensor_ = 0;
+        } else{
+            boundary_size_features_tensor_ = (8 * devices_.size()) - (num_features_ % (8 * devices_.size()));
+        }
+    #endif
+    // double precision PLSSVM with Tensor Cores
+    #if !defined(MIXED) && defined (TENSOR)
+        if(dept_ % BLOCK_SIZE == 0){
+            boundary_size_ = 0;
+        } else{
+            boundary_size_ = BLOCK_SIZE - (dept_ % BLOCK_SIZE);
+        }
+        if(num_features_ % (8 * devices_.size()) == 0){
+            boundary_size_features_tensor_ = 0;
+        } else{
+            boundary_size_features_tensor_ = (8 * devices_.size()) - (num_features_ % (8 * devices_.size()));
+        } 
+    #endif
+    // no tensor kernel used
+    #if !defined (TENSOR)
+       boundary_size_ = static_cast<std::size_t>(THREAD_BLOCK_SIZE * INTERNAL_BLOCK_SIZE);
+       boundary_size_features_tensor_ = 0; 
+    #endif
+    num_rows_ = dept_ + boundary_size_;
+    num_cols_ = num_features_ + boundary_size_features_tensor_;
+    fmt::print("num_features: {}, num_cols: {}, num_rows: {}, boundary_size_ {} \n", num_features_, num_cols_, num_rows_, boundary_size_);
+
+    // Data Test: // TODO löschen
+    /* double sum_test = 0.0;
+    for (size_t i = 0; i < dept_ + 1; ++i) {
+        for (size_t k = 0; k < num_features_ -1; ++k) {
+            sum_test += std::abs((*data_ptr_)[i][k]);
+        }
+    }
+    printf("sum_test %f and %f\n", sum_test, sum_test/(dept_ + 1)/num_features_);
+     */
+
+    /* feature_ranges_.reserve(devices_.size() + 1);
+    for (typename std::vector<queue_type>::size_type device = 0; device <= devices_.size(); ++device) {
+        feature_ranges_.push_back(device * num_rows_ / devices_.size());
+    }
+    std::vector<double> fullMatrix((dept_ + boundary_size_) * (dept_ + boundary_size_), 0.0);
+    for(int i = 0; i < num_rows_; ++i){
+        for(int j = 0; j < num_rows_; ++j){
+            double sum = 0.0;
+            for(int k = 0; k < num_features_; ++k){
+                sum += (*data_ptr_)[i][k]*(*data_ptr_)[j][k];
+            }
+            if (i == j){
+                fullMatrix[i * num_rows_ + j] = sum - q[i] - q[j] + QA_cost_ + cost_;
+            } else {
+                fullMatrix[i * num_rows_ + j] = sum - q[i] - q[j] + QA_cost_;
             }
         }
+    }
 
-        #pragma omp parallel for
-        for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
-            const std::size_t num_features = feature_ranges_[device + 1] - feature_ranges_[device];
+    #pragma omp parallel for
+    for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
+        const std::size_t num_features = feature_ranges_[device + 1] - feature_ranges_[device];
 
-            const detail::execution_range range_r ({ static_cast<std::size_t>(std::ceil(static_cast<real_type>(dept_ + boundary_size_) / static_cast<real_type>(THREAD_BLOCK_SIZE))) },
-                                                { std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_ + boundary_size_) });
+        const detail::execution_range range_r ({ static_cast<std::size_t>(std::ceil(static_cast<real_type>(dept_ + boundary_size_) / static_cast<real_type>(THREAD_BLOCK_SIZE))) },
+                                            { std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_ + boundary_size_) });
 
 
-            const std::size_t device_data_size = num_features * (dept_ + boundary_size_);
-            data_d_[device] = device_ptr_type{ device_data_size, devices_[device] };
-            data_d_[device].memcpy_to_device(fullMatrix.data() + feature_ranges_[device] * (dept_ + boundary_size_), 0, device_data_size);
+        const std::size_t device_data_size = num_features * (dept_ + boundary_size_);
+        data_d_[device] = device_ptr_type{ device_data_size, devices_[device] };
+        data_d_[device].memcpy_to_device(fullMatrix.data() + feature_ranges_[device] * (dept_ + boundary_size_), 0, device_data_size);
 
-            const detail::execution_range range_full ({ static_cast<std::size_t>(std::ceil(static_cast<real_type>(dept_ * (dept_ + boundary_size_)) / static_cast<real_type>(THREAD_BLOCK_SIZE))) },
-                                                { std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_ + boundary_size_) });
+        const detail::execution_range range_full ({ static_cast<std::size_t>(std::ceil(static_cast<real_type>(dept_ * (dept_ + boundary_size_)) / static_cast<real_type>(THREAD_BLOCK_SIZE))) },
+                                            { std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_ + boundary_size_) });
 
-            data_d_f_[device] = device_ptr_type_float{ device_data_size, devices_[device] };
-            run_transformation_kernel_df(device, range_full, data_d_f_[0], data_d_[0]);
+        data_d_f_[device] = device_ptr_type_float{ device_data_size, devices_[device] };
+        run_transformation_kernel_df(device, range_full, data_d_f_[0], data_d_[0]);
+    }
+    */
+
+    feature_ranges_.reserve(devices_.size() + 1);
+    for (typename std::vector<queue_type>::size_type device = 0; device <= devices_.size(); ++device) {
+        feature_ranges_.push_back(device * num_cols_ / devices_.size());
+    }
+    // transform 2D to 1D data
+    const std::vector<real_type> transformed_data = csvm::transform_data(*data_ptr_, boundary_size_, dept_, boundary_size_features_tensor_);
+    // fmt::print("Hi before setup \n");
+
+    // test section:
+    // std::vector<float> transformed_data_f_orig(transformed_data.size());
+    // std::vector<float> transformed_data_f_gpu(transformed_data.size());
+
+    #if defined(MIXED)
+        std::vector<float> transformed_data_f(transformed_data.size());
+#pragma omp parallel for    
+        for (size_t i = 0; i < transformed_data.size(); ++i) {
+            transformed_data_f[i] = static_cast<float>(transformed_data[i]);
         }
-        */
+    #endif
 
+#pragma omp parallel for
+    for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
+        const std::size_t num_features = feature_ranges_[device + 1] - feature_ranges_[device];
 
-        feature_ranges_.reserve(devices_.size() + 1);
-        for (typename std::vector<queue_type>::size_type device = 0; device <= devices_.size(); ++device) {
-            feature_ranges_.push_back(device * num_cols_ / devices_.size());
-        }
-        // transform 2D to 1D data
-        const std::vector<real_type> transformed_data = csvm::transform_data(*data_ptr_, boundary_size_, dept_); // boundary_size
-        // fmt::print("Hi before setup \n");
+        fmt::print("num_features: {}, num_cols: {}, num_rows: {}, boundary_size_ {} \n", num_features, num_cols_, num_rows_, boundary_size_);
 
-        // test section:
-        std::vector<float> transformed_data_f_orig (transformed_data.size());
-        std::vector<float> transformed_data_f_gpu (transformed_data.size());
-        for (size_t i = 0; i < transformed_data.size(); ++i)
-        {
-            transformed_data_f_orig[i] = static_cast<float>(transformed_data[i]);
-        }
+        // initialize data_last on device
+        data_last_d_[device] = device_ptr_type{ num_features + boundary_size_, devices_[device] };
+        data_last_d_[device].memset(0);
+        data_last_d_[device].memcpy_to_device(data_ptr_->back().data() + feature_ranges_[device], 0, num_features);
 
-        #pragma omp parallel for
-        for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
-            const std::size_t num_features = feature_ranges_[device + 1] - feature_ranges_[device];
+        #if defined(MIXED)
+        const detail::execution_range range_r({ static_cast<std::size_t>(std::ceil(static_cast<real_type>(num_features) / static_cast<real_type>(THREAD_BLOCK_SIZE))) },  // num_features + boundary_size_ ?
+                                              { std::min<std::size_t>(THREAD_BLOCK_SIZE, num_features) });
 
-            const detail::execution_range range_r ({ static_cast<std::size_t>(std::ceil(static_cast<real_type>(num_features + boundary_size_) / static_cast<real_type>(THREAD_BLOCK_SIZE))) }, // num_features + boundary_size_ ?
-                                                { std::min<std::size_t>(THREAD_BLOCK_SIZE, num_features) });
+        data_last_d_f_[device] = device_ptr_type_float{ num_features + boundary_size_, devices_[device] };
+        data_last_d_f_[device].memset(0);
+        run_transformation_kernel_df(device, range_r, data_last_d_f_[device], data_last_d_[device]);
+        #endif
+        // fmt::print("Hi from Device: {} \n", device);
 
-            // initialize data_last on device
-            data_last_d_[device] = device_ptr_type{ num_features + boundary_size_, devices_[device] };
-            data_last_d_[device].memset(0);
-            data_last_d_[device].memcpy_to_device(data_ptr_->back().data() + feature_ranges_[device], 0, num_features);
-            
-            data_last_d_f_[device] = device_ptr_type_float{ num_features + boundary_size_, devices_[device] };
-            data_last_d_f_[device].memset(0);
-            run_transformation_kernel_df(device, range_r, data_last_d_f_[device], data_last_d_[device]);
-
-            // fmt::print("Hi from Device: {} \n", device);
-
-
-            const std::size_t device_data_size = num_features * (dept_ + boundary_size_);
+        const std::size_t device_data_size = num_features * (dept_ + boundary_size_);
+        #if !defined(MIXED)
             data_d_[device] = device_ptr_type{ device_data_size, devices_[device] };
             data_d_[device].memcpy_to_device(transformed_data.data() + feature_ranges_[device] * (dept_ + boundary_size_), 0, device_data_size);
+        #endif
+        //const detail::execution_range range_full({ static_cast<std::size_t>(std::ceil(static_cast<real_type>(num_features * (dept_ + boundary_size_)) / static_cast<real_type>(THREAD_BLOCK_SIZE))) },
+        //                                         { std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_) });
 
-            const detail::execution_range range_full ({ static_cast<std::size_t>(std::ceil(static_cast<real_type>(num_features * (dept_ + boundary_size_)) / static_cast<real_type>(THREAD_BLOCK_SIZE))) },
-                                                { std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_) });
+        #if defined(MIXED)
+        data_d_f_[device] = device_ptr_type_float{ device_data_size, devices_[device] };
+        data_d_f_[device].memcpy_to_device(transformed_data_f.data() + feature_ranges_[device] * (dept_ + boundary_size_), 0, device_data_size);
+        #endif
+        // run_transformation_kernel_df(device, range_full, data_d_f_[device], data_d_[device]);
+        // fmt::print("Hi2 from Device: {}, exec_range: {} {} \n", device, static_cast<std::size_t>(std::ceil(static_cast<real_type>(num_features * (dept_)) / static_cast<real_type>(THREAD_BLOCK_SIZE))), std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_));
+    }
 
-            data_d_f_[device] = device_ptr_type_float{ device_data_size, devices_[device] };
-            run_transformation_kernel_df(device, range_full, data_d_f_[device], data_d_[device]);
-            // fmt::print("Hi2 from Device: {}, exec_range: {} {} \n", device, static_cast<std::size_t>(std::ceil(static_cast<real_type>(num_features * (dept_)) / static_cast<real_type>(THREAD_BLOCK_SIZE))), std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_));
+    fmt::print("Setup done \n");
+
+    // debug section
+    /*
+    int counter = 0;
+    float value = 0.0;
+    float abs;
+    data_d_f_[0].memcpy_to_host(transformed_data_f_gpu.data(), 0, transformed_data.size());
+    for (size_t i = 0; i < transformed_data.size()/devices_.size(); ++i)
+    {
+        if(transformed_data_f_gpu[i] != transformed_data_f_orig[i]){
+            counter++;
+            abs = (transformed_data_f_gpu[i] >transformed_data_f_orig[i]) ? transformed_data_f_gpu[i] - transformed_data_f_orig[i] : transformed_data_f_orig[i] - transformed_data_f_gpu[i];
+            value += abs;
         }
+    }
+    fmt::print("counter: {} error: {} rel_error: {} size: {} \n", counter, value, value/transformed_data.size(), transformed_data.size());
+    */
+}
 
-        // debug section
-        /*
-        int counter = 0;
-        float value = 0.0;
-        float abs;
-        data_d_f_[0].memcpy_to_host(transformed_data_f_gpu.data(), 0, transformed_data.size());
-        for (size_t i = 0; i < transformed_data.size()/devices_.size(); ++i)
-        {
-            if(transformed_data_f_gpu[i] != transformed_data_f_orig[i]){
-                counter++;
-                abs = (transformed_data_f_gpu[i] >transformed_data_f_orig[i]) ? transformed_data_f_gpu[i] - transformed_data_f_orig[i] : transformed_data_f_orig[i] - transformed_data_f_gpu[i];
-                value += abs;
-            }
-        }
-        fmt::print("counter: {} error: {} rel_error: {} size: {} \n", counter, value, value/transformed_data.size(), transformed_data.size());
-        */
+auto gpu_csvm::generate_q_f() -> std::vector<float> {
+    PLSSVM_ASSERT(dept_ != 0, "dept_ not initialized! Maybe a call to setup_data_on_device() is missing?");
+    PLSSVM_ASSERT(boundary_size_ != 0, "boundary_size_ not initialized! Maybe a call to setup_data_on_device() is missing?");
+    PLSSVM_ASSERT(num_rows_ != 0, "num_rows_ not initialized! Maybe a call to setup_data_on_device() is missing?");
+    PLSSVM_ASSERT(num_cols_ != 0, "num_cols_ not initialized! Maybe a call to setup_data_on_device() is missing?");
 
+    std::vector<device_ptr_type_float> q_d_f(devices_.size());
+
+    #pragma omp parallel for
+    for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
+        q_d_f[device] = device_ptr_type_float{ dept_ + boundary_size_, devices_[device] };
+        q_d_f[device].memset(0);
+
+        // feature splitting on multiple devices
+        const detail::execution_range range({ static_cast<std::size_t>(std::ceil(static_cast<real_type>(dept_) / static_cast<real_type>(THREAD_BLOCK_SIZE))) },
+                                            { std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_) });
+
+        run_q_kernel_f(device, range, q_d_f[device], feature_ranges_[device + 1] - feature_ranges_[device]);
+    }
+
+    std::vector<float> q_f(dept_);
+    device_reduction_f(q_d_f, q_f);
+
+    return q_f;
 }
 
 auto gpu_csvm::generate_q() -> std::vector<real_type> {
@@ -413,20 +489,23 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
     // fmt::ostream out_z = fmt::output_file("Analyse_zahlen.txt"); 
     
 
-    std::vector<real_type> b_new(b); //überflüssig?
+    std::vector<real_type> b_new(b);
     real_type b_res = transposed<double>{ b } * b;
 
     std::vector<real_type> y(dept_, 0.0);
     std::vector<real_type> x(dept_, 1.0/(num_features_ * dept_));
-    std::vector<float> x_f(dept_, 1.0);
     std::vector<device_ptr_type> x_d(devices_.size());
-    std::vector<device_ptr_type_float> x_d_f(devices_.size());
 
     std::vector<real_type> r(dept_, 0.0);
-    // std::vector<real_type> r_old(dept_, 0.0);
-    // std::vector<float> r_f(dept_, 0.0); //Debugging only
     std::vector<device_ptr_type> r_d(devices_.size());
-    std::vector<device_ptr_type_float> r_d_f(devices_.size());
+    #if defined(MIXED)
+        std::vector<float> x_f(dept_, 1.0/(num_features_ * dept_));
+        std::vector<device_ptr_type_float> x_d_f(devices_.size());
+        std::vector<device_ptr_type_float> r_d_f(devices_.size());
+        // conversions
+        const detail::execution_range range_r ({ static_cast<std::size_t>(std::ceil(static_cast<real_type>(dept_ + boundary_size_) / static_cast<real_type>(THREAD_BLOCK_SIZE))) },
+                                            { std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_) });
+    #endif
 
     #pragma omp parallel for
     for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
@@ -434,40 +513,65 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
         x_d[device].memset(0);
         x_d[device].memcpy_to_device(x, 0, dept_);
 
-        x_d_f[device] = device_ptr_type_float{ dept_ + boundary_size_, devices_[device] };
-        x_d_f[device].memset(0);
-
         r_d[device] = device_ptr_type{ dept_ + boundary_size_, devices_[device] };
         r_d[device].memset(0);
 
-        r_d_f[device] = device_ptr_type_float{ dept_ + boundary_size_, devices_[device] };
-        r_d_f[device].memset(0);
+        #if defined(MIXED)
+            x_d_f[device] = device_ptr_type_float{ dept_ + boundary_size_, devices_[device] };
+            x_d_f[device].memset(0);
+            run_transformation_kernel_df(device, range_r, x_d_f[device], x_d[device]);
+
+            r_d_f[device] = device_ptr_type_float{ dept_ + boundary_size_, devices_[device] };
+            r_d_f[device].memset(0);
+        #endif
     }
     r_d[0].memcpy_to_device(b, 0, dept_);
+    #if defined(MIXED)
+        run_transformation_kernel_df(0, range_r, r_d_f[0], r_d[0]);
 
-    // conversions
-    const detail::execution_range range_r ({ static_cast<std::size_t>(std::ceil(static_cast<real_type>(dept_) / static_cast<real_type>(THREAD_BLOCK_SIZE))) },
-                                            { std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_) });
+        std::vector<device_ptr_type_float> q_d_f(devices_.size());
+    #endif
 
     // debug
     fmt::print("exec_range: {} {} size: {} \n", static_cast<std::size_t>(std::ceil(static_cast<real_type>(dept_) / static_cast<real_type>(THREAD_BLOCK_SIZE))), std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_), dept_);
 
     std::vector<device_ptr_type> q_d(devices_.size());
-    std::vector<device_ptr_type_float> q_d_f(devices_.size());
+    
     #pragma omp parallel for
     for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
         q_d[device] = device_ptr_type{ dept_ + boundary_size_, devices_[device] };
         q_d[device].memset(0);
         q_d[device].memcpy_to_device(q, 0, dept_);
 
+        #if defined(MIXED)
         q_d_f[device] = device_ptr_type_float{ dept_ + boundary_size_, devices_[device] };
         q_d_f[device].memset(0);
         run_transformation_kernel_df(device, range_r, q_d_f[device], q_d[device]);
+        #endif
         
         // r = Ax (r = b - Ax)
-        run_device_kernel_t(device, q_d[device], r_d[device], x_d[device], -1);
+        #if defined(MIXED)
+            #if defined(TENSOR)
+                run_device_kernel_tf(device, q_d_f[device], r_d_f[device], x_d_f[device], -1);
+            #endif
+            #if !defined(TENSOR)
+                run_device_kernel_f(device, q_d_f[device], r_d_f[device], x_d_f[device], -1);
+            #endif
+            run_transformation_kernel_fd(device, range_r, r_d[device], r_d_f[device]);
+        #endif
+        #if !defined(MIXED)
+            #if defined(TENSOR)
+                run_device_kernel_t(device, q_d[device], r_d[device], x_d[device], -1);
+            #endif
+            #if !defined(TENSOR)
+                run_device_kernel(device, q_d[device], r_d[device], x_d[device], -1);
+            #endif
+        #endif
     }
+    // device_reduction(r_d, r);
     device_reduction(r_d, r);
+
+    fmt::print("Hello \n");
 
     // delta = r.T * r
     real_type delta = transposed<double>{ r } * r;
@@ -475,23 +579,28 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
     real_type delta_old = delta;
 
     std::vector<real_type> Ad(dept_);
-    //std::vector<real_type> Ad_test(dept_);
+    #if !defined(MIXED)
+        std::vector<device_ptr_type> Ad_d(devices_.size());
+    #endif
     #if defined(MIXED)
         std::vector<float> Ad_f(dept_);
+        std::vector<device_ptr_type_float> Ad_d_f(devices_.size());
     #endif
 
-    std::vector<device_ptr_type> Ad_d(devices_.size());
-    std::vector<device_ptr_type> Ad_d_test(devices_.size());
-    std::vector<device_ptr_type_float> Ad_d_f(devices_.size());
+    //std::vector<real_type> Ad_test(dept_);
+    // std::vector<device_ptr_type> Ad_d_test(devices_.size());
+
     for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
-        Ad_d[device] = device_ptr_type{ dept_ + boundary_size_, devices_[device] };
-        // Ad_d_test[device] = device_ptr_type{ dept_ + boundary_size_, devices_[device] };
+        #if !defined(MIXED)
+            Ad_d[device] = device_ptr_type{ dept_ + boundary_size_, devices_[device] };
+        #endif
         #if defined(MIXED)
             Ad_d_f[device] = device_ptr_type_float{ dept_ + boundary_size_, devices_[device] };
             run_transformation_kernel_df(device, range_r, r_d_f[device], r_d[device]);
         #endif
+        // Ad_d_test[device] = device_ptr_type{ dept_ + boundary_size_, devices_[device] };
     }
-
+    // fmt::print("Hi2 \n");
     std::vector<real_type> d(r);
 
     // Test section:
@@ -515,9 +624,7 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
     #if defined(MIXED)
         for(typename std::vector<queue_type>::size_type cast_i = 0; cast_i < dept_; ++cast_i)
         {
-            // d_f[cast_i] = static_cast<float>(d[cast_i]);
             Ad_f[cast_i] = static_cast<float>(Ad[cast_i]);
-            // x_f[cast_i] = static_cast<float>(x[cast_i]);
         }
     #endif
 
@@ -540,7 +647,6 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
             fmt::print("Start Iteration {} (max: {}) with current residuum {} (target: {}). ", run + 1, imax, delta, eps * eps * delta0);
         }
         iteration_start_time = std::chrono::steady_clock::now();
-        // fmt::print("Hi 2 \n");
 
         // Ad = A * r (q = A * d)
         #pragma omp parallel for
@@ -548,21 +654,23 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
             #if defined(MIXED)
                 Ad_d_f[device].memset(0);
                 r_d_f[device].memset(0, dept_);
-                run_device_kernel_tf(device, q_d_f[device], Ad_d_f[device], r_d_f[device], 1);
+                #if defined(TENSOR)
+                    run_device_kernel_tf(device, q_d_f[device], Ad_d_f[device], r_d_f[device], 1);
+                #endif
+                #if !defined(TENSOR)
+                    run_device_kernel_f(device, q_d_f[device], Ad_d_f[device], r_d_f[device], 1);
+                #endif
             #endif
             #if !defined(MIXED)
                 Ad_d[device].memset(0);
                 r_d[device].memset(0, dept_);
-                run_device_kernel_t(device, q_d[device], Ad_d[device], r_d[device], 1);
+                #if defined(TENSOR)
+                    run_device_kernel_t(device, q_d[device], Ad_d[device], r_d[device], 1);
+                #endif
+                #if !defined(TENSOR)
+                    run_device_kernel(device, q_d[device], Ad_d[device], r_d[device], 1);
+                #endif               
             #endif
-            // TEST ONLY Ad_d_test[device].memset(0);
-
-             
-            
-            // run_device_kernel_m(device, q_d_f[device], Ad_d_test[device], r_d_f[device], 1);
-            // run_device_kernel_t(device, q_d[device], Ad_d[device], r_d[device], 1);
-            // - run_device_kernel(device, q_d[device], Ad_d[device], r_d[device], 1);
-            // run_transformation_kernel_fd(device, range_r, r_d[device], r_d_f[device]);
         }
         // update Ad (q)
         #if defined(MIXED)
@@ -634,59 +742,126 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
         // (x = x + alpha * d)
         // x += alpha_cd * d;
         
-
-        if (delta < 0.01 * b_res && 1 == 0) {  //run % 50 == 49 // 0.1 * b_res 
-
-            // (x = x + alpha * d)
-            x += alpha_cd * d;
-
-            for(typename std::vector<queue_type>::size_type cast_i = 0; cast_i < dept_; ++cast_i) {
-                // x_f[cast_i] = static_cast<float>(x[cast_i]);
-            }
-
-            fmt::print("correction in iteration {} \n ", run);
-
-            #pragma omp parallel for
-            for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
-                // x_d_f[device].memcpy_to_device(x_f, 0, dept_);
-                x_d[device].memcpy_to_device(x, 0, dept_);
-            }
-
-            #pragma omp parallel for
-            for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
-                if(device == 0) {
-                    // r = b
-                    // r_d[0].memcpy_to_device(b, 0, dept_);
-                    r_d[0].memcpy_to_device(b_new, 0, dept_);
-                    // run_transformation_kernel_df(0, range_r, r_d_f[0], r_d[0]);
-                } else {
-                    // set r to 0
-                    r_d[device].memset(0);
-                    // r_d_f[device].memset(0);
-                }
-
-                // r -= A * x
-                run_device_kernel_t(device, q_d[device], r_d[device], x_d[device], -1);
-                // run_device_kernel_f(device, q_d_f[device], r_d_f[device], x_d_f[device], -1);
-            }
-            // run_transformation_kernel_fd(0, range_r, r_d[0], r_d_f[0]);
-            device_reduction(r_d, r);
-            b_new = r;
-            b_res = transposed<double>{ b_new } * b_new;
-            y+= x;
-            std::fill(x.begin(), x.end(), 0.0);
-            //b_res = transposed<double>{ b_new } * b_new;
-            // delta = b_res;
-
-
-        } else {
+        if(CORRECTION_SCHEME == 0){
             // r -= alpha_cd * Ad (r = r - alpha * q)
             r -= alpha_cd * Ad;
             // (x = x + alpha * d)
             x += alpha_cd * d;
+        } else if(CORRECTION_SCHEME == 1){
+            // (x = x + alpha * d)
+            x += alpha_cd * d;
+            if (run % 50 == 49) {
+                #pragma omp parallel for
+                for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
+                    // r = b
+                    if(device == 0) {
+                        r_d[0].memcpy_to_device(b, 0, dept_);
+                        #if defined(MIXED)
+                            run_transformation_kernel_df(0, range_r, r_d_f[0], r_d[0]);
+                        #endif 
+                    } else {
+                        // set r to 0
+                        r_d[device].memset(0);
+                        #if defined(MIXED)
+                            r_d_f[device].memset(0);
+                        #endif
+                    }
+                    // r -= A * x
+                    #if defined(MIXED)
+                        #if defined(TENSOR)
+                            run_device_kernel_tf(device, q_d_f[device], r_d_f[device], x_d_f[device], -1);
+                        #endif
+                        #if !defined(TENSOR)
+                            run_device_kernel_f(device, q_d_f[device], r_d_f[device], x_d_f[device], -1);
+                        #endif
+                        run_transformation_kernel_fd(device, range_r, r_d[device], r_d_f[device]);
+                    #endif
+                    #if !defined(MIXED)
+                        #if defined(TENSOR)
+                            run_device_kernel_t(device, q_d[device], r_d[device], x_d[device], -1);
+                        #endif
+                        #if !defined(TENSOR)
+                            run_device_kernel(device, q_d[device], r_d[device], x_d[device], -1);
+                        #endif
+                    #endif
+                }
+                device_reduction(r_d, r);
+            } else {
+                // r -= alpha_cd * Ad (r = r - alpha * q)
+                r -= alpha_cd * Ad;
+            }
+        }else if(CORRECTION_SCHEME == 2){
+            if (delta < 0.1 * b_res) {  // 0.1 * b_res 
+
+                // (x = x + alpha * d)
+                // x += alpha_cd * d;
+                y+= x;
+
+                #if defined(MIXED)
+                    for(typename std::vector<queue_type>::size_type cast_i = 0; cast_i < dept_; ++cast_i) {
+                        x_f[cast_i] = static_cast<float>(x[cast_i]);
+                    }
+                    #pragma omp parallel for
+                    for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
+                        x_d_f[device].memcpy_to_device(x_f, 0, dept_);
+                    }
+                #endif
+                #if !defined(MIXED)
+                    #pragma omp parallel for
+                    for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
+                        // x_d_f[device].memcpy_to_device(x_f, 0, dept_);
+                        x_d[device].memcpy_to_device(x, 0, dept_);
+                    }
+                #endif
+
+                fmt::print("correction in iteration {} \n ", run);
+
+                #pragma omp parallel for
+                for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
+                    if(device == 0) {
+                        // r = b
+                        r_d[0].memcpy_to_device(b_new, 0, dept_);
+                        #if defined(MIXED)
+                            run_transformation_kernel_df(0, range_r, r_d_f[0], r_d[0]);
+                        #endif
+                    } else {
+                        // set r to 0
+                        r_d[device].memset(0);
+                        #if defined(MIXED)
+                            r_d_f[device].memset(0);
+                        #endif
+                    }
+                    // r -= A * x
+                    #if defined(MIXED)
+                        #if defined(TENSOR)
+                            run_device_kernel_tf(device, q_d_f[device], r_d_f[device], x_d_f[device], -1);
+                        #endif
+                        #if !defined(TENSOR)
+                            run_device_kernel_f(device, q_d_f[device], r_d_f[device], x_d_f[device], -1);
+                        #endif
+                        run_transformation_kernel_fd(device, range_r, r_d[device], r_d_f[device]);
+                    #endif
+                    #if !defined(MIXED)
+                        #if defined(TENSOR)
+                            run_device_kernel_t(device, q_d[device], r_d[device], x_d[device], -1);
+                        #endif
+                        #if !defined(TENSOR)
+                            run_device_kernel(device, q_d[device], r_d[device], x_d[device], -1);
+                        #endif
+                    #endif
+                }
+                device_reduction(r_d, r);
+                b_new = r;
+                b_res = transposed<double>{ r } * r;
+                
+                std::fill(x.begin(), x.end(), 0.0);
+            } else {
+                // r -= alpha_cd * Ad (r = r - alpha * q)
+                r -= alpha_cd * Ad;
+                // (x = x + alpha * d)
+                x += alpha_cd * d;
+            }
         }
-
-
 
         // (delta = r^T * r)
         delta_old = delta;
@@ -784,8 +959,8 @@ void gpu_csvm::run_device_kernel_t(const std::size_t device, const device_ptr_ty
     PLSSVM_ASSERT(num_rows_ != 0, "num_rows_ not initialized! Maybe a call to setup_data_on_device() is missing?");
     PLSSVM_ASSERT(num_cols_ != 0, "num_cols_ not initialized! Maybe a call to setup_data_on_device() is missing?");
 
-    const auto grid = static_cast<std::size_t>(std::ceil(static_cast<real_type>(dept_) / static_cast<real_type>(boundary_size_)));
-    const detail::execution_range range({ grid, grid }, { THREAD_BLOCK_SIZE, THREAD_BLOCK_SIZE });
+    const auto grid = static_cast<std::size_t>(num_rows_ / BLOCK_SIZE);
+    const detail::execution_range range({ grid, grid }, { WARP_SIZE, WARPS_PER_BLOCK });
 
     run_svm_kernel_t(device, range, q_d, r_d, x_d, add, feature_ranges_[device + 1] - feature_ranges_[device]);
 }
@@ -808,22 +983,10 @@ void gpu_csvm::run_device_kernel_tf(const std::size_t device, const device_ptr_t
     PLSSVM_ASSERT(num_rows_ != 0, "num_rows_ not initialized! Maybe a call to setup_data_on_device() is missing?");
     PLSSVM_ASSERT(num_cols_ != 0, "num_cols_ not initialized! Maybe a call to setup_data_on_device() is missing?");
 
-    const auto grid = static_cast<std::size_t>(std::ceil(static_cast<real_type>(dept_) / static_cast<real_type>(boundary_size_)));
-    const detail::execution_range range({ grid, grid }, { THREAD_BLOCK_SIZE, THREAD_BLOCK_SIZE });
+    const auto grid = static_cast<std::size_t>(num_rows_ / BLOCK_SIZE_F);
+    const detail::execution_range range({ grid, grid }, { WARP_SIZE, WARPS_PER_BLOCK_F });
 
     run_svm_kernel_tf(device, range, q_d, r_d, x_d, add, feature_ranges_[device + 1] - feature_ranges_[device]);
-}
-
-void gpu_csvm::run_device_kernel_m(const std::size_t device, const device_ptr_type_float &q_d, device_ptr_type &r_d, const device_ptr_type_float &x_d, const float add) {
-    PLSSVM_ASSERT(dept_ != 0, "dept_ not initialized! Maybe a call to setup_data_on_device() is missing?");
-    PLSSVM_ASSERT(boundary_size_ != 0, "boundary_size_ not initialized! Maybe a call to setup_data_on_device() is missing?");
-    PLSSVM_ASSERT(num_rows_ != 0, "num_rows_ not initialized! Maybe a call to setup_data_on_device() is missing?");
-    PLSSVM_ASSERT(num_cols_ != 0, "num_cols_ not initialized! Maybe a call to setup_data_on_device() is missing?");
-
-    const auto grid = static_cast<std::size_t>(std::ceil(static_cast<real_type>(dept_) / static_cast<real_type>(boundary_size_)));
-    const detail::execution_range range({ grid, grid }, { THREAD_BLOCK_SIZE, THREAD_BLOCK_SIZE });
-
-    run_svm_kernel_m(device, range, q_d, r_d, x_d, add, feature_ranges_[device + 1] - feature_ranges_[device]);
 }
 
 void gpu_csvm::device_reduction(std::vector<device_ptr_type> &buffer_d, std::vector<real_type> &buffer) {

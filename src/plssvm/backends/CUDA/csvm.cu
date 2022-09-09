@@ -109,7 +109,6 @@ void csvm::run_q_kernel(const std::size_t device, const ::plssvm::detail::execut
     auto [grid, block] = execution_range_to_native(range);
 
     detail::set_device(device);
-    fmt::print("Hi, before q \n");
     switch (kernel_) {
         case kernel_type::linear:
             cuda::device_kernel_q_linear<<<grid, block>>>(q_d.get(), data_d_[device].get(), data_last_d_[device].get(), num_rows_, num_features, gamma_);
@@ -124,7 +123,26 @@ void csvm::run_q_kernel(const std::size_t device, const ::plssvm::detail::execut
             break;
     }
     detail::peek_at_last_error();
-    fmt::print("Hi, after q \n");
+}
+
+void csvm::run_q_kernel_f(const std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type_float &q_d_f, const std::size_t num_features) {
+    auto [grid, block] = execution_range_to_native(range);
+
+    detail::set_device(device);
+    switch (kernel_) {
+        case kernel_type::linear:
+            cuda::device_kernel_q_linear_f<<<grid, block>>>(q_d_f.get(), data_d_f_[device].get(), data_last_d_f_[device].get(), num_rows_, num_features, gamma_f_);
+            break;
+        case kernel_type::polynomial:
+            PLSSVM_ASSERT(device == 0, "The polynomial kernel function currently only supports single GPU execution!");
+            cuda::device_kernel_q_poly_f<<<grid, block>>>(q_d_f.get(), data_d_f_[device].get(), data_last_d_f_[device].get(), num_rows_, num_cols_, degree_, gamma_f_, coef0_);
+            break;
+        case kernel_type::rbf:
+            PLSSVM_ASSERT(device == 0, "The radial basis function kernel function currently only supports single GPU execution!");
+            cuda::device_kernel_q_radial_f<<<grid, block>>>(q_d_f.get(), data_d_f_[device].get(), data_last_d_f_[device].get(), num_rows_, num_cols_, gamma_f_);
+            break;
+    }
+    detail::peek_at_last_error();
 }
 
 void csvm::run_svm_kernel(const std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, const real_type add, const std::size_t num_features) {
@@ -151,44 +169,45 @@ void csvm::run_svm_kernel(const std::size_t device, const ::plssvm::detail::exec
 void csvm::run_svm_kernel_t(const std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, const real_type add, const std::size_t num_features) {
     auto [grid, block] = execution_range_to_native(range);
 
-    size_t dyn_sha_mem = (BLOCK_SIZE * BLOCK_OFF + (BLOCK_OFF * 16) + (BLOCK_OFF * 3))*sizeof(double); //Matrix, Ausgangsmatrix i und j + Vec
-    grid.x = 512; // 256
-    grid.y = 512; // 256
-    block.x = 32;
-    block.y = 8; // 16
-    // fmt::print("grid 0 1 2: {} {} {} - block: {} {} {} \n", grid.x, grid.y, grid.z, block.x, block.y, block.z);
+    size_t dyn_sha_mem = ((BLOCK_SIZE + 4) * BLOCK_OFF) * sizeof(double); 
+    // grid.x = 512; // 512, 2048
+    // grid.y = 512; // 512, 2048
+    // block.x = 32;
+    // block.y = 12; // 8
+    fmt::print("grid 0 1 2: {} {} {} - block: {} {} {} \n", grid.x, grid.y, grid.z, block.x, block.y, block.z);
 
 
     detail::set_device(device);
     switch (kernel_) {
         case kernel_type::linear:             
             PLSSVM_CUDA_ERROR_CHECK(cudaFuncSetAttribute(cuda::device_kernel_linear_t, cudaFuncAttributeMaxDynamicSharedMemorySize, dyn_sha_mem));
-            // fmt::print("mem size: {} - num_features: {} - num_rows: {} - grid: {} {} {} \n", dyn_sha_mem, num_features, num_rows_, grid.x, grid.y, grid.z);
             cuda::device_kernel_linear_t<<<grid, block, dyn_sha_mem>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_features, add, gamma_, device); // , INTERNAL_BLOCK_SIZE * INTERNAL_BLOCK_SIZE * (256 + 2) * 8
             break;
         case kernel_type::polynomial:
-            //PLSSVM_ASSERT(device == 0, "The polynomial kernel function currently only supports single GPU execution!");
-            //cuda::device_kernel_poly<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_cols_, add, degree_, gamma_, coef0_);
+            PLSSVM_ASSERT(device == 0, "The polynomial kernel function currently only supports single GPU execution!");
+            fmt::print("num_cols {} num_rows {} \n", num_features, num_cols_);
+            PLSSVM_CUDA_ERROR_CHECK(cudaFuncSetAttribute(cuda::device_kernel_poly_t, cudaFuncAttributeMaxDynamicSharedMemorySize, dyn_sha_mem));
+            cuda::device_kernel_poly_t<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_cols_, add, degree_, gamma_, coef0_);
             break;
         case kernel_type::rbf:
-            PLSSVM_CUDA_ERROR_CHECK(cudaFuncSetAttribute(cuda::device_kernel_radial_t, cudaFuncAttributeMaxDynamicSharedMemorySize, dyn_sha_mem));
             PLSSVM_ASSERT(device == 0, "The radial basis function kernel function currently only supports single GPU execution!");
-            cuda::device_kernel_radial_t<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_cols_, add, gamma_);
+            cuda::device_kernel_radial<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_cols_, add, gamma_);
             break;
     }
     detail::peek_at_last_error();
+    // fmt::print("Hi after Kernel \n");
 }
 
 void csvm::run_svm_kernel_tf(const std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, const float add, const std::size_t num_features) {
     auto [grid, block] = execution_range_to_native(range);
 
-    size_t dyn_sha_mem = (BLOCK_SIZE_F * BLOCK_OFF_F + (BLOCK_OFF_F * 32) + (BLOCK_OFF_F * 3))*sizeof(float); //Matrix, Ausgangsmatrix i und j + Vec
-    grid.x = 256;
-    grid.y = 256;
-    block.x = 32;
-    block.y = 8; // 16
     // fmt::print("grid 0 1 2: {} {} {} - block: {} {} {} \n", grid.x, grid.y, grid.z, block.x, block.y, block.z);
 
+    size_t dyn_sha_mem = ((BLOCK_SIZE_F + 4) * BLOCK_OFF_F)*sizeof(float); //Matrix, Ausgangsmatrix i und j + Vec
+    // grid.x = 244; //256; // 1024; // 256;
+    // grid.y = 244; // 256; // 1024; // 256;
+    // block.x = 32;
+    // block.y = 8; // 16
 
     detail::set_device(device);
     switch (kernel_) {
@@ -223,26 +242,6 @@ void csvm::run_svm_kernel_f(const std::size_t device, const ::plssvm::detail::ex
             PLSSVM_ASSERT(device == 0, "The radial basis function kernel function currently only supports single GPU execution!");
             cuda::device_kernel_radial<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_f_[device].get(), QA_cost_f_, 1 / cost_f_, num_rows_, num_cols_, add, gamma_f_);
             break;
-    }
-    detail::peek_at_last_error();
-}
-
-void csvm::run_svm_kernel_m(const std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type &r_d, const device_ptr_type_float &x_d, const float add, const std::size_t num_features) {
-    auto [grid, block] = execution_range_to_native(range);
-
-    detail::set_device(device);
-    switch (kernel_) {
-        case kernel_type::linear:
-            cuda::device_kernel_linear_mixed<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_f_[device].get(), QA_cost_f_, 1 / cost_f_, num_rows_, num_features, add, device);
-            break;
-        /*case kernel_type::polynomial:
-            PLSSVM_ASSERT(device == 0, "The polynomial kernel function currently only supports single GPU execution!");
-            cuda::device_kernel_poly<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_cols_, add, degree_, gamma_, coef0_);
-            break;
-        case kernel_type::rbf:
-            PLSSVM_ASSERT(device == 0, "The radial basis function kernel function currently only supports single GPU execution!");
-            cuda::device_kernel_radial<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_cols_, add, gamma_);
-            break;*/
     }
     detail::peek_at_last_error();
 }

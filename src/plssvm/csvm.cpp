@@ -8,6 +8,7 @@
 
 #include "plssvm/csvm.hpp"
 
+#include "plssvm/constants.hpp"              // MIXED
 #include "plssvm/detail/assert.hpp"          // PLSSVM_ASSERT
 #include "plssvm/detail/operators.hpp"       // dot product, plssvm::operators::sum, plssvm::operators::sign
 #include "plssvm/detail/utility.hpp"         // plssvm::detail::to_underlying
@@ -38,7 +39,7 @@
 namespace plssvm {
 
 csvm::csvm(const parameter &params) :
-    target_{ params.target }, kernel_{ params.kernel }, degree_{ params.degree }, gamma_{ params.gamma }, gamma_f_{ static_cast<float>(params.gamma) }, coef0_{ params.coef0 }, cost_{ params.cost }, cost_f_{ static_cast<float>(params.cost) }, epsilon_{ params.epsilon }, print_info_{ params.print_info }, data_ptr_{ params.data_ptr }, value_ptr_{ params.value_ptr }, alpha_ptr_{ params.alpha_ptr }, bias_{ -params.rho } {
+    target_{ params.target }, kernel_{ params.kernel }, degree_{ params.degree }, gamma_{ params.gamma }, gamma_f_{ static_cast<float>(params.gamma) }, coef0_{ params.coef0 }, coef0_f_{ static_cast<float>(params.coef0) }, cost_{ params.cost }, cost_f_{ static_cast<float>(params.cost) }, epsilon_{ params.epsilon }, print_info_{ params.print_info }, data_ptr_{ params.data_ptr }, value_ptr_{ params.value_ptr }, alpha_ptr_{ params.alpha_ptr }, bias_{ -params.rho } {
     if (data_ptr_ == nullptr) {
         throw exception{ "No data points provided!" };
     } else if (data_ptr_->empty()) {
@@ -133,16 +134,16 @@ void csvm::write_model(const std::string &model_name) {
 
     // format one output-line
     auto format_libsvm_line = [](std::string &output, const real_type a, const std::vector<real_type> &d) {
-        static constexpr std::size_t BLOCK_SIZE = 64;
+        static constexpr std::size_t BLOCK_SIZE_O = 64;
         static constexpr std::size_t CHARS_PER_BLOCK = 128;
-        static constexpr std::size_t BUFFER_SIZE = BLOCK_SIZE * CHARS_PER_BLOCK;
+        static constexpr std::size_t BUFFER_SIZE = BLOCK_SIZE_O * CHARS_PER_BLOCK;
         static char buffer[BUFFER_SIZE];
         #pragma omp threadprivate(buffer)
 
         output.append(fmt::format(FMT_COMPILE("{} "), a));
-        for (typename std::vector<real_type>::size_type j = 0; j < d.size(); j += BLOCK_SIZE) {
+        for (typename std::vector<real_type>::size_type j = 0; j < d.size(); j += BLOCK_SIZE_O) {
             char *ptr = buffer;
-            for (std::size_t i = 0; i < std::min<std::size_t>(BLOCK_SIZE, d.size() - j); ++i) {
+            for (std::size_t i = 0; i < std::min<std::size_t>(BLOCK_SIZE_O, d.size() - j); ++i) {
                 if (d[j + i] != real_type{ 0.0 }) {
                     ptr = fmt::format_to(ptr, FMT_COMPILE("{}:{:e} "), j + i, d[j + i]);
                 }
@@ -223,13 +224,30 @@ void csvm::learn() {
     auto start_time = std::chrono::steady_clock::now();
 
     std::vector<real_type> q;
+    #if defined(MIXED)
+        std::vector<float> q_f;
+    #endif
     std::vector<real_type> b = *value_ptr_;
     #pragma omp parallel sections
     {
+          
+        #if defined(MIXED)
         #pragma omp section  // generate q
-        {
-            q = generate_q();
-        }
+            { 
+                q_f = generate_q_f();
+                for (size_t i = 0; i < q_f.size(); ++i)
+                {
+                    q.resize(q_f.size());
+                    q[i] = static_cast<double>(q_f[i]);
+                }
+            }
+        #endif
+        #if !defined(MIXED)  
+        #pragma omp section  // generate q
+            {               
+                q = generate_q();
+            }
+        #endif        
         #pragma omp section  // generate right-hand side from equation
         {
             b.pop_back();
@@ -373,7 +391,7 @@ auto csvm::kernel_function(const std::vector<real_type> &xi, const std::vector<r
     throw unsupported_kernel_type_exception{ fmt::format("Unknown kernel type (value: {})!", detail::to_underlying(kernel_)) };
 }
 
-auto csvm::transform_data(const std::vector<std::vector<real_type>> &matrix, const std::size_t boundary, const std::size_t num_points) -> std::vector<real_type> {
+auto csvm::transform_data(const std::vector<std::vector<real_type>> &matrix, const std::size_t boundary, const std::size_t num_points, const std::size_t boundary_features) -> std::vector<real_type> {
     PLSSVM_ASSERT(!matrix.empty(), "Matrix is empty!");
     PLSSVM_ASSERT(num_points <= matrix.size(), "Num points to transform can not exceed matrix size!");
 
@@ -383,7 +401,7 @@ auto csvm::transform_data(const std::vector<std::vector<real_type>> &matrix, con
 
     auto start_time = std::chrono::steady_clock::now();
 
-    std::vector<real_type> vec(num_features * (num_points + boundary));
+    std::vector<real_type> vec((num_features + boundary_features) * (num_points + boundary), 0.0);
     #pragma omp parallel for collapse(2)
     for (typename std::vector<real_type>::size_type col = 0; col < num_features; ++col) {
         for (std::size_t row = 0; row < num_points; ++row) {

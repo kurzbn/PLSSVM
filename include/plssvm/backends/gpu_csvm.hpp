@@ -95,6 +95,10 @@ class gpu_csvm : public csvm {
      */
     void setup_data_on_device() final;
     /**
+     * @copydoc plssvm::csvm::generate_q_f
+     */
+    [[nodiscard]] std::vector<float> generate_q_f() final;
+    /**
      * @copydoc plssvm::csvm::generate_q
      */
     [[nodiscard]] std::vector<real_type> generate_q() final;
@@ -119,7 +123,6 @@ class gpu_csvm : public csvm {
     void run_device_kernel_t(std::size_t device, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add);
     void run_device_kernel_tf(std::size_t device, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add);
     void run_device_kernel_f(std::size_t device, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add);
-    void run_device_kernel_m(std::size_t device, const device_ptr_type_float &q_d, device_ptr_type &r_d, const device_ptr_type_float &x_d, float add);
     /**
      * @brief Combines the data in @p buffer_d from all devices into @p buffer and distributes them back to each device.
      * @param[in,out] buffer_d the data to gather
@@ -136,6 +139,14 @@ class gpu_csvm : public csvm {
      * @param[in,out] queue the queue denoting the device to synchronize
      */
     virtual void device_synchronize(queue_type &queue) = 0;
+    /**
+     * @brief Run the GPU kernel filling the `q` vector.
+     * @param[in] device the device ID denoting the GPU on which the kernel should be executed
+     * @param[in] range the execution range used to launch the kernel
+     * @param[out] q_d_f the `q` vector to fill
+     * @param[in] num_features number of features used for the calculation on the @p device
+     */
+    virtual void run_q_kernel_f(std::size_t device, const detail::execution_range &range, device_ptr_type_float &q_d_f, std::size_t num_features) = 0;
     /**
      * @brief Run the GPU kernel filling the `q` vector.
      * @param[in] device the device ID denoting the GPU on which the kernel should be executed
@@ -158,7 +169,7 @@ class gpu_csvm : public csvm {
     virtual void run_svm_kernel_t(std::size_t device, const detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add, std::size_t num_features) = 0;
     virtual void run_svm_kernel_f(std::size_t device, const detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add, std::size_t num_features) = 0;
     virtual void run_svm_kernel_tf(std::size_t device, const detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add, std::size_t num_features) = 0;
-    virtual void run_svm_kernel_m(std::size_t device, const detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type &r_d, const device_ptr_type_float &x_d, float add, std::size_t num_features) = 0;
+    
     /**
      * @brief Run the GPU kernel (only on the first GPU) the calculate the `w` vector used to speed up the prediction when using the linear kernel function.
      * @param[in] device the device ID denoting the GPU on which the kernel should be executed
@@ -188,6 +199,8 @@ class gpu_csvm : public csvm {
     std::size_t dept_{};
     /// The boundary size used to remove boundary condition checks inside the kernels.
     std::size_t boundary_size_{};
+    /// The boundary size used to ensure a tensor dividable feature_size inside the kernels.
+    std::size_t boundary_size_features_tensor_{};
     /// The number of rows to calculate including the boundary values.
     std::size_t num_rows_{};
     /// The number of columns in the data matrix (= the number of features per data point).
