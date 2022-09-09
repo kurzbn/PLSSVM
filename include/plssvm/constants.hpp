@@ -54,7 +54,7 @@ constexpr kernel_index_type OPENMP_BLOCK_SIZE = 64;
 #define ROLL_SIZE_F 8
 
 #define TENSOR 0
-#define MIXED 0
+// #define MIXED 0
 #define POLAK_RIBIERE 0
 
 constexpr kernel_index_type CORRECTION_SCHEME = 0;

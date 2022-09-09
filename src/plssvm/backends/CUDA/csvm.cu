@@ -174,7 +174,7 @@ void csvm::run_svm_kernel_t(const std::size_t device, const ::plssvm::detail::ex
     // grid.y = 512; // 512, 2048
     // block.x = 32;
     // block.y = 12; // 8
-    fmt::print("grid 0 1 2: {} {} {} - block: {} {} {} \n", grid.x, grid.y, grid.z, block.x, block.y, block.z);
+    // fmt::print("grid 0 1 2: {} {} {} - block: {} {} {} \n", grid.x, grid.y, grid.z, block.x, block.y, block.z);
 
 
     detail::set_device(device);

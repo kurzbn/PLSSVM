@@ -168,7 +168,7 @@ void gpu_csvm::setup_data_on_device() {
     #endif
     num_rows_ = dept_ + boundary_size_;
     num_cols_ = num_features_ + boundary_size_features_tensor_;
-    fmt::print("num_features: {}, num_cols: {}, num_rows: {}, boundary_size_ {} \n", num_features_, num_cols_, num_rows_, boundary_size_);
+    // fmt::print("num_features: {}, num_cols: {}, num_rows: {}, boundary_size_ {} \n", num_features_, num_cols_, num_rows_, boundary_size_);
 
     // Data Test: // TODO löschen
     /* double sum_test = 0.0;
@@ -243,7 +243,7 @@ void gpu_csvm::setup_data_on_device() {
     for (typename std::vector<queue_type>::size_type device = 0; device < devices_.size(); ++device) {
         const std::size_t num_features = feature_ranges_[device + 1] - feature_ranges_[device];
 
-        fmt::print("num_features: {}, num_cols: {}, num_rows: {}, boundary_size_ {} \n", num_features, num_cols_, num_rows_, boundary_size_);
+        // fmt::print("num_features: {}, num_cols: {}, num_rows: {}, boundary_size_ {} \n", num_features, num_cols_, num_rows_, boundary_size_);
 
         // initialize data_last on device
         data_last_d_[device] = device_ptr_type{ num_features + boundary_size_, devices_[device] };
@@ -276,7 +276,7 @@ void gpu_csvm::setup_data_on_device() {
         // fmt::print("Hi2 from Device: {}, exec_range: {} {} \n", device, static_cast<std::size_t>(std::ceil(static_cast<real_type>(num_features * (dept_)) / static_cast<real_type>(THREAD_BLOCK_SIZE))), std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_));
     }
 
-    fmt::print("Setup done \n");
+    // fmt::print("Setup done \n");
 
     // debug section
     /*
@@ -344,7 +344,7 @@ auto gpu_csvm::generate_q() -> std::vector<real_type> {
 
     std::vector<real_type> q(dept_);
     device_reduction(q_d, q);
-    fmt::print("data_ptr sizes: {} \n", data_ptr_->size());
+    // fmt::print("data_ptr sizes: {} \n", data_ptr_->size());
 
     // n-1 Matrix
     /*
@@ -533,7 +533,7 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
     #endif
 
     // debug
-    fmt::print("exec_range: {} {} size: {} \n", static_cast<std::size_t>(std::ceil(static_cast<real_type>(dept_) / static_cast<real_type>(THREAD_BLOCK_SIZE))), std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_), dept_);
+    // fmt::print("exec_range: {} {} size: {} \n", static_cast<std::size_t>(std::ceil(static_cast<real_type>(dept_) / static_cast<real_type>(THREAD_BLOCK_SIZE))), std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_), dept_);
 
     std::vector<device_ptr_type> q_d(devices_.size());
     
@@ -571,7 +571,7 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
     // device_reduction(r_d, r);
     device_reduction(r_d, r);
 
-    fmt::print("Hello \n");
+    // fmt::print("Hello \n");
 
     // delta = r.T * r
     real_type delta = transposed<double>{ r } * r;
