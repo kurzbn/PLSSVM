@@ -258,22 +258,18 @@ void gpu_csvm::setup_data_on_device() {
         data_last_d_f_[device].memset(0);
         run_transformation_kernel_df(device, range_r, data_last_d_f_[device], data_last_d_[device]);
         #endif
-        // fmt::print("Hi from Device: {} \n", device);
 
+        // TODO Check here or in Kernels for integer overflow
         const std::size_t device_data_size = num_features * (dept_ + boundary_size_);
         #if !defined(MIXED)
             data_d_[device] = device_ptr_type{ device_data_size, devices_[device] };
             data_d_[device].memcpy_to_device(transformed_data.data() + feature_ranges_[device] * (dept_ + boundary_size_), 0, device_data_size);
         #endif
-        //const detail::execution_range range_full({ static_cast<std::size_t>(std::ceil(static_cast<real_type>(num_features * (dept_ + boundary_size_)) / static_cast<real_type>(THREAD_BLOCK_SIZE))) },
-        //                                         { std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_) });
 
         #if defined(MIXED)
         data_d_f_[device] = device_ptr_type_float{ device_data_size, devices_[device] };
         data_d_f_[device].memcpy_to_device(transformed_data_f.data() + feature_ranges_[device] * (dept_ + boundary_size_), 0, device_data_size);
         #endif
-        // run_transformation_kernel_df(device, range_full, data_d_f_[device], data_d_[device]);
-        // fmt::print("Hi2 from Device: {}, exec_range: {} {} \n", device, static_cast<std::size_t>(std::ceil(static_cast<real_type>(num_features * (dept_)) / static_cast<real_type>(THREAD_BLOCK_SIZE))), std::min<std::size_t>(THREAD_BLOCK_SIZE, dept_));
     }
 
     // fmt::print("Setup done \n");
@@ -561,7 +557,7 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
         #endif
         #if !defined(MIXED)
             #if defined(TENSOR)
-                run_device_kernel_t(device, q_d[device], r_d[device], x_d[device], -1);
+                run_device_kernel_td(device, q_d[device], r_d[device], x_d[device], -1);
             #endif
             #if !defined(TENSOR)
                 run_device_kernel(device, q_d[device], r_d[device], x_d[device], -1);
@@ -629,11 +625,12 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
     #endif
 
     // timing for each CG iteration
-    std::chrono::milliseconds average_iteration_time{};
+    std::chrono::microseconds average_iteration_time{};
     std::chrono::steady_clock::time_point iteration_start_time{};
     const auto output_iteration_duration = [&]() {
         auto iteration_end_time = std::chrono::steady_clock::now();
         auto iteration_duration = std::chrono::duration_cast<std::chrono::milliseconds>(iteration_end_time - iteration_start_time);
+        // auto iteration_duration = std::chrono::duration_cast<std::chrono::microseconds>(iteration_end_time - iteration_start_time);
         fmt::print("Done in {}.\n", iteration_duration);
         average_iteration_time += iteration_duration;
     };
@@ -642,7 +639,7 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
 
 
     std::size_t run = 0;
-    for (; run < imax; ++run) {
+    for (; run < imax; ++run) { // imax
         if (print_info_) {
             fmt::print("Start Iteration {} (max: {}) with current residuum {} (target: {}). ", run + 1, imax, delta, eps * eps * delta0);
         }
@@ -665,7 +662,7 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
                 Ad_d[device].memset(0);
                 r_d[device].memset(0, dept_);
                 #if defined(TENSOR)
-                    run_device_kernel_t(device, q_d[device], Ad_d[device], r_d[device], 1);
+                    run_device_kernel_td(device, q_d[device], Ad_d[device], r_d[device], 1);
                 #endif
                 #if !defined(TENSOR)
                     run_device_kernel(device, q_d[device], Ad_d[device], r_d[device], 1);
@@ -742,12 +739,12 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
         // (x = x + alpha * d)
         // x += alpha_cd * d;
         
-        if(CORRECTION_SCHEME == 0){
+        if constexpr(CORRECTION_SCHEME == correction_scheme::zero){
             // r -= alpha_cd * Ad (r = r - alpha * q)
             r -= alpha_cd * Ad;
             // (x = x + alpha * d)
             x += alpha_cd * d;
-        } else if(CORRECTION_SCHEME == 1){
+        } else if(CORRECTION_SCHEME == correction_scheme::NewRScheme){
             // (x = x + alpha * d)
             x += alpha_cd * d;
             if (run % 50 == 49) {
@@ -778,7 +775,7 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
                     #endif
                     #if !defined(MIXED)
                         #if defined(TENSOR)
-                            run_device_kernel_t(device, q_d[device], r_d[device], x_d[device], -1);
+                            run_device_kernel_td(device, q_d[device], r_d[device], x_d[device], -1);
                         #endif
                         #if !defined(TENSOR)
                             run_device_kernel(device, q_d[device], r_d[device], x_d[device], -1);
@@ -790,7 +787,7 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
                 // r -= alpha_cd * Ad (r = r - alpha * q)
                 r -= alpha_cd * Ad;
             }
-        }else if(CORRECTION_SCHEME == 2){
+        }else if(CORRECTION_SCHEME == correction_scheme::ReliableUpdate){
             if (delta < 0.1 * b_res) {  // 0.1 * b_res 
 
                 // (x = x + alpha * d)
@@ -843,7 +840,7 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
                     #endif
                     #if !defined(MIXED)
                         #if defined(TENSOR)
-                            run_device_kernel_t(device, q_d[device], r_d[device], x_d[device], -1);
+                            run_device_kernel_td(device, q_d[device], r_d[device], x_d[device], -1);
                         #endif
                         #if !defined(TENSOR)
                             run_device_kernel(device, q_d[device], r_d[device], x_d[device], -1);
@@ -868,6 +865,7 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
         delta = transposed<double>{ r } * r;
         // if we are exact enough stop CG iterations
         if (delta <= eps * eps * delta0) {
+        // if (delta <= 0.1) {
             if (print_info_) {
                 output_iteration_duration();
                 // out.print("{}", delta);
@@ -907,8 +905,15 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
                    delta,
                    eps * eps * delta0,
                    average_iteration_time / std::min(run + 1, imax));
+                   #if defined(RUNTIME_TEST)
+                   time_counter = average_iteration_time / (run);
+                   #endif
     }
     y+= x;
+
+    #if defined(RUNTIME_TEST)
+    konvergenz_counter = run + 1;
+    #endif
 
     /*fmt::print("Solutionvec:\n");
     for(int i = 0; i < 128; ++i) fmt::print("{}\n", y[i]);*/
@@ -953,7 +958,7 @@ void gpu_csvm::run_device_kernel(const std::size_t device, const device_ptr_type
     run_svm_kernel(device, range, q_d, r_d, x_d, add, feature_ranges_[device + 1] - feature_ranges_[device]);
 }
 
-void gpu_csvm::run_device_kernel_t(const std::size_t device, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, const real_type add) {
+void gpu_csvm::run_device_kernel_td(const std::size_t device, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, const real_type add) {
     PLSSVM_ASSERT(dept_ != 0, "dept_ not initialized! Maybe a call to setup_data_on_device() is missing?");
     PLSSVM_ASSERT(boundary_size_ != 0, "boundary_size_ not initialized! Maybe a call to setup_data_on_device() is missing?");
     PLSSVM_ASSERT(num_rows_ != 0, "num_rows_ not initialized! Maybe a call to setup_data_on_device() is missing?");
@@ -962,7 +967,7 @@ void gpu_csvm::run_device_kernel_t(const std::size_t device, const device_ptr_ty
     const auto grid = static_cast<std::size_t>(num_rows_ / BLOCK_SIZE);
     const detail::execution_range range({ grid, grid }, { WARP_SIZE, WARPS_PER_BLOCK });
 
-    run_svm_kernel_t(device, range, q_d, r_d, x_d, add, feature_ranges_[device + 1] - feature_ranges_[device]);
+    run_svm_kernel_td(device, range, q_d, r_d, x_d, add, feature_ranges_[device + 1] - feature_ranges_[device]);
 }
 
 void gpu_csvm::run_device_kernel_f(const std::size_t device, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, const float add) {

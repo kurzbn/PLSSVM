@@ -241,8 +241,7 @@ void csvm::learn() {
                     q[i] = static_cast<double>(q_f[i]);
                 }
             }
-        #endif
-        #if !defined(MIXED)  
+        #else
         #pragma omp section  // generate q
             {               
                 q = generate_q();
@@ -271,7 +270,55 @@ void csvm::learn() {
     // solve minimization
     std::vector<real_type> alpha;
     // alpha = solver_CG(b, num_features_, epsilon_, q);
+
+#if defined(RUNTIME_TEST)
+    // create runtime output
+    std::string output_file_name = fmt::format("Konvergenz_Tests_{}_{}", num_data_points_, num_features_);
+    // std::string output_file_name = fmt::format("Runtime_Tests_{}_{}", num_data_points_, num_features_);
+
+    std::string libsvm_model_header = fmt::format("Num_Points: {}, Num_Features {}", num_data_points_, num_features_);
+    #if defined(MIXED)
+    libsvm_model_header += fmt::format(", MIXED Precision");
+    output_file_name += fmt::format("_M");
+    #else
+    libsvm_model_header += fmt::format(", DOUBLE Precision");
+    output_file_name += fmt::format("_D");
+    #endif
+    #if defined(TENSOR)
+    libsvm_model_header += fmt::format(", Tensor Variant");
+    output_file_name += fmt::format("_T");
+    #else
+    libsvm_model_header += fmt::format(", non tensor Variant");
+    output_file_name += fmt::format("_S");
+    #endif
+    #if defined(POLAK_RIBIERE)
+    libsvm_model_header += fmt::format(", POLAK-RIBIERE");
+    output_file_name += fmt::format("_PR");
+    #else
+    libsvm_model_header += fmt::format(", FLETCHER-REEVES");
+    output_file_name += fmt::format("_FR");
+    #endif
+    if constexpr(CORRECTION_SCHEME == correction_scheme::zero) {
+        libsvm_model_header += fmt::format(", no correction \n");
+        output_file_name += fmt::format("_0.txt");
+    } else if(CORRECTION_SCHEME == correction_scheme::NewRScheme) {
+        libsvm_model_header += fmt::format(", r correction \n");
+        output_file_name += fmt::format("_R.txt");
+    } else {
+        libsvm_model_header += fmt::format(", reliable update \n");
+        output_file_name += fmt::format("_RU.txt");
+    }
+    fmt::ostream out = fmt::output_file(output_file_name);
+    out.print(libsvm_model_header);
+    for (size_t test_case = 0; test_case < std::max(static_cast<size_t>(1), static_cast<size_t>(RUNTIME_TEST)); ++test_case) {
+        alpha = solver_CG(b, num_features_, epsilon_, q);
+        out.print("{} ", konvergenz_counter);
+        // out.print("{} ", time_counter);
+    }
+#else
     alpha = solver_CG(b, num_features_, epsilon_, q);
+#endif
+
     bias_ = value_ptr_->back() + QA_cost_ * sum(alpha) - (transposed{ q } * alpha);
     alpha.emplace_back(-sum(alpha));
 

@@ -14,9 +14,38 @@
 #include "plssvm/constants.hpp"  // plssvm::kernel_index_type
 
 namespace plssvm::cuda {
+/**
+ * @brief Calculates the C-SVM kernel using the linear tensor-kernel function in double precision.
+ * @details Supports multi-GPU execution.
+ * @param[in] q the `q` vector
+ * @param[out] ret the result vector
+ * @param[in] d the right-hand side of the equation
+ * @param[in] data_d the one-dimension data matrix
+ * @param[in] QA_cost the bottom right matrix entry multiplied by cost
+ * @param[in] cost 1 / the cost parameter in the C-SVM
+ * @param[in] num_rows the number of columns in the data matrix
+ * @param[in] feature_range  number of features used for the calculation on the device @p id
+ * @param[in] add denotes whether the values are added or subtracted from the result vector
+ * @param[in] gamma the gamma parameter used in the linear kernel function
+ * @param[in] id the id of the current device
+ */
+__global__ void device_kernel_linear_td(const real_type *q, real_type *ret, const real_type *d, const real_type *data_d, const real_type QA_cost, const real_type cost, const kernel_index_type num_rows, const kernel_index_type feature_range, const real_type add, const real_type gamma, const kernel_index_type id);
 
-__global__ void device_kernel_linear_t(const real_type *q, real_type *ret, const real_type *d, const real_type *data_d, const real_type QA_cost, const real_type cost, const kernel_index_type num_rows, const kernel_index_type feature_range, const real_type add, const real_type gamma, const kernel_index_type id);
-
+/**
+ * @brief Calculates the C-SVM kernel using the linear tensor-kernel function in single precision.
+ * @details Supports multi-GPU execution.
+ * @param[in] q the `q` vector
+ * @param[out] ret the result vector
+ * @param[in] d the right-hand side of the equation
+ * @param[in] data_d the one-dimension data matrix
+ * @param[in] QA_cost the bottom right matrix entry multiplied by cost
+ * @param[in] cost 1 / the cost parameter in the C-SVM
+ * @param[in] num_rows the number of columns in the data matrix
+ * @param[in] feature_range  number of features used for the calculation on the device @p id
+ * @param[in] add denotes whether the values are added or subtracted from the result vector
+ * @param[in] gamma the gamma parameter used in the linear kernel function
+ * @param[in] id the id of the current device
+ */
 __global__ void device_kernel_linear_tf(const float *q, float *ret, const float *d, const float *data_d, const float QA_cost, const float cost, const kernel_index_type num_rows, const kernel_index_type feature_range, const float add, const float gamma, const kernel_index_type id);
 
 
@@ -33,6 +62,7 @@ __global__ void device_kernel_linear_tf(const float *q, float *ret, const float 
  * @param[in] num_rows the number of columns in the data matrix
  * @param[in] feature_range  number of features used for the calculation on the device @p id
  * @param[in] add denotes whether the values are added or subtracted from the result vector
+ * @param[in] gamma the gamma parameter used in the linear kernel function
  * @param[in] id the id of the current device
  */
 template <typename real_type>
@@ -56,9 +86,43 @@ __global__ void device_kernel_linear(const real_type *q, real_type *ret, const r
  * @param[in] coef0 the coef0 parameter used in the polynomial kernel function
  */
 template <typename real_type>
-__global__ void device_kernel_poly(const real_type *q, real_type *ret, const real_type *d, const real_type *data_d, const real_type QA_cost, const real_type cost, const kernel_index_type num_rows, const kernel_index_type num_cols, const real_type add, const int degree, const real_type gamma, const real_type coef0);
-
-__global__ void device_kernel_poly_t(const double *q, double *out, const double *vec, const double *in, const double QA_cost, const double cost, const int points, const int feature_range, const double add, const int degree, const double gamma, const real_type coef0);
+__global__ void device_kernel_poly(const real_type *q, real_type *ret, const real_type *d, const real_type *data_d, const real_type QA_cost, const real_type cost, const kernel_index_type num_rows, const kernel_index_type num_cols, const real_type add, const kernel_index_type degree, const real_type gamma, const real_type coef0);
+/**
+ * @brief Calculates the C-SVM kernel using the polynomial tensor-kernel function in double precision.
+ * @details Currently only single GPU execution is supported.
+ * @tparam real_type the type of the data
+ * @param[in] q the `q` vector
+ * @param[out] ret the result vector
+ * @param[in] d the right-hand side of the equation
+ * @param[in] data_d the one-dimension data matrix
+ * @param[in] QA_cost he bottom right matrix entry multiplied by cost
+ * @param[in] cost 1 / the cost parameter in the C-SVM
+ * @param[in] num_rows the number of columns in the data matrix
+ * @param[in] num_cols the number of rows in the data matrix
+ * @param[in] add denotes whether the values are added or subtracted from the result vector
+ * @param[in] degree the degree parameter used in the polynomial kernel function
+ * @param[in] gamma the gamma parameter used in the polynomial kernel function
+ * @param[in] coef0 the coef0 parameter used in the polynomial kernel function
+ */
+__global__ void device_kernel_poly_td(const double *q, double *out, const double *vec, const double *in, const double QA_cost, const double cost, const kernel_index_type points, const kernel_index_type feature_range, const double add, const kernel_index_type degree, const double gamma, const real_type coef0);
+/**
+ * @brief Calculates the C-SVM kernel using the polynomial tensor-kernel function in single precision.
+ * @details Currently only single GPU execution is supported.
+ * @tparam real_type the type of the data
+ * @param[in] q the `q` vector
+ * @param[out] ret the result vector
+ * @param[in] d the right-hand side of the equation
+ * @param[in] data_d the one-dimension data matrix
+ * @param[in] QA_cost he bottom right matrix entry multiplied by cost
+ * @param[in] cost 1 / the cost parameter in the C-SVM
+ * @param[in] num_rows the number of columns in the data matrix
+ * @param[in] num_cols the number of rows in the data matrix
+ * @param[in] add denotes whether the values are added or subtracted from the result vector
+ * @param[in] degree the degree parameter used in the polynomial kernel function
+ * @param[in] gamma the gamma parameter used in the polynomial kernel function
+ * @param[in] coef0 the coef0 parameter used in the polynomial kernel function
+ */
+__global__ void device_kernel_poly_tf(const float *q, float *ret, const float *d, const float *data_d, const float QA_cost, const float cost, const kernel_index_type points, const kernel_index_type feature_range, const float add, const kernel_index_type degree, const float gamma, const real_type coef0);
 
 /**
  * @brief Calculates the C-SVM kernel using the radial basis function kernel function.

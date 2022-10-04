@@ -43,9 +43,9 @@ constexpr kernel_index_type OPENMP_BLOCK_SIZE = 64;
 
 #define WARPS_PER_BLOCK 12
 #define THREADS_PER_BLOCK (WARP_SIZE * WARPS_PER_BLOCK)
-#define BLOCK_SIZE 96 // 64
-#define BLOCK_OFF 108 //72
-#define ROLL_SIZE 12 // 8
+#define BLOCK_SIZE 96
+#define BLOCK_OFF 100
+#define ROLL_SIZE 12
 
 #define WARPS_PER_BLOCK_F 8
 #define THREADS_PER_BLOCK_F (WARP_SIZE * WARPS_PER_BLOCK_F)
@@ -53,11 +53,36 @@ constexpr kernel_index_type OPENMP_BLOCK_SIZE = 64;
 #define BLOCK_OFF_F 136
 #define ROLL_SIZE_F 8
 
-#define TENSOR 0
-// #define MIXED 0
-#define POLAK_RIBIERE 0
+// Recommended settings: 
+// define TENSOR for Ampere GPUs or newer
+// define MIXED only for Desktop GPUs
+// don't use POLAK-RIBIERE without reliable_updates
 
-constexpr kernel_index_type CORRECTION_SCHEME = 0;
+// if defined, tensor-Kernels are getting used
+#define TENSOR
+// if defined, mixed precision is getting used
+// #define MIXED
+// if defined, beta will be calclulated after polak-ribiere
+// #define POLAK_RIBIERE
+
+
+// For testing only
+// if defined always run single gpu 
+// #define SINGLE_TEST
+// define the number of runs for your test
+// #define RUNTIME_TEST 0
+
+enum class correction_scheme {
+    /** The default corection_scheme: none */
+    zero,
+    /** The one used in PLSSVM current main build. */
+    NewRScheme,
+    /** ReliableUpdate. */
+    ReliableUpdate,
+};
+
+// Choose one correction_scheme from correction_scheme, defualt is zero.
+constexpr correction_scheme CORRECTION_SCHEME = correction_scheme::zero;
 
 // perform sanity checks
 static_assert(THREAD_BLOCK_SIZE > 0, "THREAD_BLOCK_SIZE must be greater than 0!");

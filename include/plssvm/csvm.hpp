@@ -19,6 +19,7 @@
 #include <string>       // std::string
 #include <type_traits>  // std::is_same_v
 #include <vector>       // std::vector
+#include <chrono>       // std::chrono::time_point
 
 namespace plssvm {
 
@@ -281,6 +282,9 @@ class csvm {
     float QA_cost_f_{};
     /// The normal vector used for speeding up the prediction in case of the linear kernel function.
     std::vector<real_type> w_{};
+
+    size_t konvergenz_counter = 0;
+    std::chrono::microseconds time_counter;
 };
 
 // extern template class csvm<double>;

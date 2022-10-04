@@ -93,19 +93,28 @@ class csvm : public ::plssvm::detail::gpu_csvm {
     /**
      * @copydoc plssvm::detail::gpu_csvm::run_q_kernel_f
      */
-    void run_q_kernel_f(std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type_float &q_d_f, std::size_t num_features);
+    void run_q_kernel_f(std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type_float &q_d_f, std::size_t num_features) override;
 
     /**
      * @copydoc plssvm::detail::gpu_csvm::run_q_kernel
      */
-    void run_q_kernel(std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type &q_d, std::size_t num_features);
+    void run_q_kernel(std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type &q_d, std::size_t num_features) override;
     /**
      * @copydoc plssvm::detail::gpu_csvm::run_svm_kernel
      */
-    void run_svm_kernel(std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add, std::size_t num_features);
-    void run_svm_kernel_t(std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add, std::size_t num_features);
-    void run_svm_kernel_tf(std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add, std::size_t num_features);
-    void run_svm_kernel_f(std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add, std::size_t num_features);
+    void run_svm_kernel(std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add, std::size_t num_features) override;
+    /**
+     * @copydoc plssvm::detail::gpu_csvm::run_svm_kernel_td
+     */
+    void run_svm_kernel_td(std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add, std::size_t num_features) override;
+    /**
+     * @copydoc plssvm::detail::gpu_csvm::run_svm_kernel_tf
+     */
+    void run_svm_kernel_tf(std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add, std::size_t num_features) override;
+    /**
+     * @copydoc plssvm::detail::gpu_csvm::run_svm_kernel_f
+     */
+    void run_svm_kernel_f(std::size_t device, const ::plssvm::detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add, std::size_t num_features) override;
     /**
      * @copydoc plssvm::detail::gpu_csvm::run_w_kernel
      */
@@ -115,10 +124,14 @@ class csvm : public ::plssvm::detail::gpu_csvm {
      */
     void run_predict_kernel(const ::plssvm::detail::execution_range &range, device_ptr_type &out_d, const device_ptr_type &alpha_d, const device_ptr_type &point_d, std::size_t num_predict_points) final;
 
-
-    void run_transformation_kernel_df(const std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type_float &float_out, const device_ptr_type &double_in);
-
-    void run_transformation_kernel_fd(const std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type &double_out, const device_ptr_type_float &float_in);
+    /**
+     * @copydoc plssvm::detail::gpu_csvm::run_transformation_kernel_df
+     */
+    void run_transformation_kernel_df(const std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type_float &float_out, const device_ptr_type &double_in) override;
+    /**
+     * @copydoc plssvm::detail::gpu_csvm::run_transformation_kernel_fd
+     */
+    void run_transformation_kernel_fd(const std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type &double_out, const device_ptr_type_float &float_in) override;
 };
 
 // extern template class csvm<double>;

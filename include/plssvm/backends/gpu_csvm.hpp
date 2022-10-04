@@ -120,8 +120,32 @@ class gpu_csvm : public csvm {
      * @param[in] add denotes whether the values are added or subtracted from the result vector
      */
     void run_device_kernel(std::size_t device, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add);
-    void run_device_kernel_t(std::size_t device, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add);
+    /**
+     * @brief Run the Tensor-SVM kernel on the GPU denoted by the @p device ID.
+     * @param[in] device the device ID denoting the GPU on which the kernel should be executed
+     * @param[in] q_d subvector of the least-squares matrix equation
+     * @param[in,out] r_d the result vector
+     * @param[in] x_d the right-hand side of the equation
+     * @param[in] add denotes whether the values are added or subtracted from the result vector
+     */
+    void run_device_kernel_td(std::size_t device, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add);
+    /**
+     * @brief Run the Tensor-SVM kernel on the GPU denoted by the @p device ID for floats.
+     * @param[in] device the device ID denoting the GPU on which the kernel should be executed
+     * @param[in] q_d subvector of the least-squares matrix equation
+     * @param[in,out] r_d the result vector
+     * @param[in] x_d the right-hand side of the equation
+     * @param[in] add denotes whether the values are added or subtracted from the result vector
+     */
     void run_device_kernel_tf(std::size_t device, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add);
+    /**
+     * @brief Run the SVM kernel on the GPU denoted by the @p device ID for floats.
+     * @param[in] device the device ID denoting the GPU on which the kernel should be executed
+     * @param[in] q_d subvector of the least-squares matrix equation
+     * @param[in,out] r_d the result vector
+     * @param[in] x_d the right-hand side of the equation
+     * @param[in] add denotes whether the values are added or subtracted from the result vector
+     */
     void run_device_kernel_f(std::size_t device, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add);
     /**
      * @brief Combines the data in @p buffer_d from all devices into @p buffer and distributes them back to each device.
@@ -129,6 +153,11 @@ class gpu_csvm : public csvm {
      * @param[in,out] buffer the reduced data
      */
     void device_reduction(std::vector<device_ptr_type> &buffer_d, std::vector<real_type> &buffer);
+    /**
+     * @brief Combines the data in @p buffer_d from all devices into @p buffer and distributes them back to each device for floats.
+     * @param[in,out] buffer_d the data to gather
+     * @param[in,out] buffer the reduced data
+     */
     void device_reduction_f(std::vector<device_ptr_type_float> &buffer_d, std::vector<float> &buffer);
 
     //*************************************************************************************************************************************//
@@ -166,8 +195,38 @@ class gpu_csvm : public csvm {
      * @param[in] num_features number of features used for the calculation in the @p device
      */
     virtual void run_svm_kernel(std::size_t device, const detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add, std::size_t num_features) = 0;
-    virtual void run_svm_kernel_t(std::size_t device, const detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add, std::size_t num_features) = 0;
+    /**
+     * @brief Run the main Tensor-GPU kernel used in the CG algorithm.
+     * @param[in] device the device ID denoting the GPU on which the kernel should be executed
+     * @param[in] range the execution range used to launch the kernel
+     * @param[in] q_d the `q` vector
+     * @param[in,out] r_d the result vector
+     * @param[in] x_d the right-hand side of the equation
+     * @param[in] add denotes whether the values are added or subtracted from the result vector
+     * @param[in] num_features number of features used for the calculation in the @p device
+     */    
+    virtual void run_svm_kernel_td(std::size_t device, const detail::execution_range &range, const device_ptr_type &q_d, device_ptr_type &r_d, const device_ptr_type &x_d, real_type add, std::size_t num_features) = 0;
+    /**
+     * @brief Run the main GPU kernel for floats used in the CG algorithm.
+     * @param[in] device the device ID denoting the GPU on which the kernel should be executed
+     * @param[in] range the execution range used to launch the kernel
+     * @param[in] q_d the `q` vector
+     * @param[in,out] r_d the result vector
+     * @param[in] x_d the right-hand side of the equation
+     * @param[in] add denotes whether the values are added or subtracted from the result vector
+     * @param[in] num_features number of features used for the calculation in the @p device
+     */   
     virtual void run_svm_kernel_f(std::size_t device, const detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add, std::size_t num_features) = 0;
+    /**
+     * @brief Run the main Tensor-GPU kernel for floats used in the CG algorithm.
+     * @param[in] device the device ID denoting the GPU on which the kernel should be executed
+     * @param[in] range the execution range used to launch the kernel
+     * @param[in] q_d the `q` vector
+     * @param[in,out] r_d the result vector
+     * @param[in] x_d the right-hand side of the equation
+     * @param[in] add denotes whether the values are added or subtracted from the result vector
+     * @param[in] num_features number of features used for the calculation in the @p device
+     */   
     virtual void run_svm_kernel_tf(std::size_t device, const detail::execution_range &range, const device_ptr_type_float &q_d, device_ptr_type_float &r_d, const device_ptr_type_float &x_d, float add, std::size_t num_features) = 0;
     
     /**
@@ -188,9 +247,21 @@ class gpu_csvm : public csvm {
      * @param[in] num_predict_points the number of data points to predict
      */
     virtual void run_predict_kernel(const detail::execution_range &range, device_ptr_type &out_d, const device_ptr_type &alpha_d, const device_ptr_type &point_d, std::size_t num_predict_points) = 0;
-
+    /**
+     * @brief Run the GPU kernel to transform given vector from double to float @p point_d.
+     * @param[in] device the device ID denoting the GPU on which the kernel should be executed
+     * @param[in] range the execution range used to launch the kernel
+     * @param[out] float_out the transformed float
+     * @param[in] double_in the vector, that should be transformed to float
+     */
     virtual void run_transformation_kernel_df(const std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type_float &float_out, const device_ptr_type &double_in) = 0;
-
+    /**
+     * @brief Run the GPU kernel to transform given vector from float to double @p point_d.
+     * @param[in] device the device ID denoting the GPU on which the kernel should be executed
+     * @param[in] range the execution range used to launch the kernel
+     * @param[out] double_out the transformed double
+     * @param[in] float_in the vector, that should be transformed to double
+     */
     virtual void run_transformation_kernel_fd(const std::size_t device, const ::plssvm::detail::execution_range &range, device_ptr_type &double_out, const device_ptr_type_float &float_in) = 0;
     //*************************************************************************************************************************************//
     //                                             internal variables specific to GPU backends                                             //
