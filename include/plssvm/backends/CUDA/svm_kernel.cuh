@@ -104,7 +104,7 @@ __global__ void device_kernel_poly(const real_type *q, real_type *ret, const rea
  * @param[in] gamma the gamma parameter used in the polynomial kernel function
  * @param[in] coef0 the coef0 parameter used in the polynomial kernel function
  */
-__global__ void device_kernel_poly_td(const double *q, double *out, const double *vec, const double *in, const double QA_cost, const double cost, const kernel_index_type points, const kernel_index_type feature_range, const double add, const kernel_index_type degree, const double gamma, const real_type coef0);
+__global__ void device_kernel_poly_td(const double *q, double *ret, const double *d, const double *data_d, const double QA_cost, const double cost, const kernel_index_type points, const kernel_index_type feature_range, const double add, const kernel_index_type degree, const double gamma, const real_type coef0);
 /**
  * @brief Calculates the C-SVM kernel using the polynomial tensor-kernel function in single precision.
  * @details Currently only single GPU execution is supported.

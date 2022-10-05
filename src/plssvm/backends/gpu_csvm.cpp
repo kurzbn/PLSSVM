@@ -494,6 +494,7 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
 
     std::vector<real_type> r(dept_, 0.0);
     std::vector<device_ptr_type> r_d(devices_.size());
+
     #if defined(MIXED)
         std::vector<float> x_f(dept_, 1.0/(num_features_ * dept_));
         std::vector<device_ptr_type_float> x_d_f(devices_.size());
@@ -573,6 +574,8 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
     real_type delta = transposed<double>{ r } * r;
     const real_type delta0 = delta;
     real_type delta_old = delta;
+    // zeta for RU
+    double zeta = 0.1;
 
     std::vector<real_type> Ad(dept_);
     #if !defined(MIXED)
@@ -734,17 +737,12 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
             std::vector<real_type>r_old(r); // for alternative Polak-Ribiere
         #endif
         
-        // r -= alpha_cd * Ad (r = r - alpha * q)     
-        // r -=  alpha_cd * Ad; 
-        // (x = x + alpha * d)
-        // x += alpha_cd * d;
-        
         if constexpr(CORRECTION_SCHEME == correction_scheme::zero){
             // r -= alpha_cd * Ad (r = r - alpha * q)
             r -= alpha_cd * Ad;
             // (x = x + alpha * d)
             x += alpha_cd * d;
-        } else if(CORRECTION_SCHEME == correction_scheme::NewRScheme){
+        } else if constexpr(CORRECTION_SCHEME == correction_scheme::NewRScheme){
             // (x = x + alpha * d)
             x += alpha_cd * d;
             if (run % 50 == 49) {
@@ -787,11 +785,11 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
                 // r -= alpha_cd * Ad (r = r - alpha * q)
                 r -= alpha_cd * Ad;
             }
-        }else if(CORRECTION_SCHEME == correction_scheme::ReliableUpdate){
-            if (delta < 0.1 * b_res) {  // 0.1 * b_res 
+        }else if constexpr(CORRECTION_SCHEME == correction_scheme::ReliableUpdate){
+            if (delta < zeta * b_res) {
 
                 // (x = x + alpha * d)
-                // x += alpha_cd * d;
+                x += alpha_cd * d;
                 y+= x;
 
                 #if defined(MIXED)
@@ -852,11 +850,13 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
                 b_res = transposed<double>{ r } * r;
                 
                 std::fill(x.begin(), x.end(), 0.0);
+                // zeta = 0.05;
             } else {
                 // r -= alpha_cd * Ad (r = r - alpha * q)
                 r -= alpha_cd * Ad;
                 // (x = x + alpha * d)
                 x += alpha_cd * d;
+                // zeta+= 0.01;
             }
         }
 
@@ -882,7 +882,7 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
         #endif
         
         
-        // d = beta * d + r // -?
+        // d = beta * d + r
         d = r + beta * d;
 
         // r_d = d
@@ -914,9 +914,6 @@ auto gpu_csvm::solver_CG(const std::vector<real_type> &b, const std::size_t imax
     #if defined(RUNTIME_TEST)
     konvergenz_counter = run + 1;
     #endif
-
-    /*fmt::print("Solutionvec:\n");
-    for(int i = 0; i < 128; ++i) fmt::print("{}\n", y[i]);*/
 
     return std::vector<real_type>(y.begin(), y.begin() + dept_);
 }

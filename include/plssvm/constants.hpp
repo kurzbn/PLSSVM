@@ -56,9 +56,9 @@ constexpr kernel_index_type OPENMP_BLOCK_SIZE = 64;
 // Recommended settings: 
 // define TENSOR for Ampere GPUs or newer
 // define MIXED only for Desktop GPUs
-// don't use POLAK-RIBIERE without reliable_updates
+// don't use POLAK-RIBIERE without reliable_updates and vice versa!
 
-// if defined, tensor-Kernels are getting used
+// if defined, tensor-Kernels are getting used, not implemented for radial kernel!
 #define TENSOR
 // if defined, mixed precision is getting used
 // #define MIXED

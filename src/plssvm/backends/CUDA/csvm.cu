@@ -189,8 +189,7 @@ void csvm::run_svm_kernel_td(const std::size_t device, const ::plssvm::detail::e
             cuda::device_kernel_poly_td<<<grid, block, dyn_sha_mem>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_cols_, add, degree_, gamma_, coef0_);
             break;
         case kernel_type::rbf:
-            PLSSVM_ASSERT(device == 0, "The radial basis function kernel function currently only supports single GPU execution!");
-            cuda::device_kernel_radial<<<grid, block>>>(q_d.get(), r_d.get(), x_d.get(), data_d_[device].get(), QA_cost_, 1 / cost_, num_rows_, num_cols_, add, gamma_);
+            throw backend_exception{ fmt::format("Radial Kernel not usable with TENSOR, use standard-Kernel!")};             
             break;
     }
     detail::peek_at_last_error();
@@ -216,6 +215,7 @@ void csvm::run_svm_kernel_tf(const std::size_t device, const ::plssvm::detail::e
             cuda::device_kernel_poly_tf<<<grid, block, dyn_sha_mem>>>(q_d.get(), r_d.get(), x_d.get(), data_d_f_[device].get(), QA_cost_f_, 1 / cost_f_, num_rows_, num_cols_, add, degree_, gamma_f_, coef0_f_);
             break;
         case kernel_type::rbf:
+            throw backend_exception{ fmt::format("Radial Kernel not usable with TENSOR, use standard-Kernel!")};
             break;
     }
     detail::peek_at_last_error();
